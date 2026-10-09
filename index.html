@@ -588,44 +588,11 @@
 </head>
 <body>
   <div id="app">
-    <div class="login-wrap">
-      <div class="login-card">
-        <img src="https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEhKVuDaGpypHWWRbcin_iV8WvcRZpqQRCeNn1vVgjbaZjygpsJH-QGpSe5Psz5Ishh8l_j39Y1zm3TAAEn4q6ZsNLrQe83U80JkrY_qPh9t710JHedVVldoWG7ZJo8s20gtbBK_Li8wdrhEkC_0ibyNFyLA_B6oRlzyzgKqy5OKzkuFRbT1WxjNXivjbalV/s225/images%20(5).jpeg" alt="SALU" style="width:72px;height:72px;margin-bottom:1rem;border-radius:12px;object-fit:cover;background:#fff;" />
-        <h1>SALU LMS</h1>
-        <p>Shah Abdul Latif University<br/>Ghotki Campus</p>
-        <button class="google-btn" id="btn-google" type="button">Sign in with Google</button>
-        <p style="margin-top:1.5rem;font-size:0.8rem;color:var(--text-muted);">Only authorised university accounts can access this system.</p>
-        <p style="margin-top:1rem;"><a href="https://www.authormasoncarter.com/p/salu-ghotki-lms-project-page.html" target="_blank" rel="noopener" style="font-size:0.72rem;font-weight:600;color:var(--text-muted);">Report Bugs</a></p>
-        <p style="margin-top:0.85rem;font-size:0.75rem;"><a href="https://www.authormasoncarter.com" target="_blank" rel="noopener" style="font-style:italic;color:var(--text-muted);">Developer: Mason Carter</a></p>
-      </div>
+    <div id="loading" class="login-wrap">
+      <div class="spinner"></div>
     </div>
   </div>
   <div id="toast-container"></div>
-
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-app.js";
-    import { getAuth, GoogleAuthProvider, signInWithRedirect } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-auth.js";
-    const auth = getAuth(initializeApp({
-      apiKey: "AIzaSyCHC23BiSkd4dIm8iFIfmTRjZg1RY1dDEU",
-      authDomain: "lms-salu-ghotki.firebaseapp.com",
-      projectId: "lms-salu-ghotki",
-      storageBucket: "lms-salu-ghotki.firebasestorage.app",
-      messagingSenderId: "697640974761",
-      appId: "1:697640974761:web:1e0b7b9b3615ea7b956cb8",
-      databaseURL: "https://lms-salu-ghotki-default-rtdb.asia-southeast1.firebasedatabase.app"
-    }));
-    const provider = new GoogleAuthProvider();
-    const btn = document.getElementById("btn-google");
-    if (btn) btn.onclick = () => {
-      btn.disabled = true;
-      btn.textContent = "Opening Google…";
-      signInWithRedirect(auth, provider).catch((e) => {
-        btn.disabled = false;
-        btn.textContent = "Sign in with Google";
-        alert("Sign-in failed: " + (e && e.message ? e.message : e));
-      });
-    };
-  </script>
 
   <script type="module">
     // ─── Firebase ───────────────────────────────────────────────
@@ -652,7 +619,6 @@
     const auth = getAuth(app);
     const db = getDatabase(app);
     const provider = new GoogleAuthProvider();
-    getRedirectResult(auth).catch(() => {});
 
     // ─── Constants ──────────────────────────────────────────────
     const ADMIN_EMAIL = "departmentofenglish064@gmail.com";
@@ -1173,14 +1139,12 @@
           </div>
         </div>
       `;
-      document.getElementById("btn-google").onclick = () => {
-        const btn = document.getElementById("btn-google");
-        btn.disabled = true;
-        btn.textContent = "Opening Google…";
-        signInWithRedirect(auth, provider).catch((e) => {
-          btn.disabled = false;
-          alert("Sign-in failed: " + (e && e.message ? e.message : e));
-        });
+      document.getElementById("btn-google").onclick = async () => {
+        try {
+          await signInWithPopup(auth, provider);
+        } catch (e) {
+          toast("Sign-in failed: " + e.message, "error");
+        }
       };
     }
 
