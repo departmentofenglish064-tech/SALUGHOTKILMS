@@ -1246,14 +1246,25 @@
       const joinedEmails = new Set(
         Object.values(users).map(u => (u.email || "").toLowerCase().trim()).filter(Boolean)
       );
+      const joinedNames = new Set(
+        Object.values(users).map(u => (u.name || "").toLowerCase().trim()).filter(Boolean)
+      );
       Object.keys(emailMap).forEach(k => joinedEmails.add(k.replace(/,/g, ".").toLowerCase()));
+      for (const [ek, p] of Object.entries(pending)) {
+        const email = (ek || "").replace(/,/g, ".").toLowerCase().trim();
+        if (joinedEmails.has(email) || emailMap[ek]) {
+          try { await dbRemove(`pending/${ek}`); } catch (_) {}
+        }
+      }
       let pendingRows = Object.entries(pending)
         .filter(([ek, p]) => {
           if (p.role === "student" || (p.roles && p.roles.student)) return false;
           const email = (ek || "").replace(/,/g, ".").toLowerCase().trim();
           const alt = (p.email || "").toLowerCase().trim();
+          const name = (p.name || "").toLowerCase().trim();
           if (joinedEmails.has(email) || (alt && joinedEmails.has(alt))) return false;
           if (emailMap[ek]) return false;
+          if (name && joinedNames.has(name) && joinedEmails.has(email)) return false;
           return true;
         })
         .map(([ek, p]) => {
@@ -3564,52 +3575,32 @@
         <td><strong>${Number(s.gpa).toFixed(2)}</strong></td>
       </tr>`).join("") || `<tr><td colspan="5" class="empty">GPA will appear after marks are uploaded</td></tr>`;
       let classLeaders = [];
-      if (hasRole("teacher") || hasRole("admin") || hasRole("hod") || hasRole("clerk") || hasRole("pvc")) {
-        const users = await dbGet("users") || {};
-        const deptsAll = await dbGet("departments") || {};
-        const since = new Date();
-        since.setFullYear(since.getFullYear() - 1);
-        const sinceStr = since.toISOString().slice(0, 10);
-        const taken = {};
-        for (let d = new Date(since); d <= new Date(); d.setDate(d.getDate() + 1)) {
-          const ds = d.toISOString().slice(0, 10);
-          const log = await dbGet(`attendanceLog/${ds}`) || {};
-          Object.values(log).forEach(l => {
-            if (l.teacherId) taken[l.teacherId] = (taken[l.teacherId] || 0) + 1;
+      try {
+        if (hasRole("teacher") || hasRole("admin") || hasRole("hod") || hasRole("clerk") || hasRole("pvc")) {
+          const users = await dbGet("users") || {};
+          const since = new Date();
+          since.setFullYear(since.getFullYear() - 1);
+          const sinceStr = since.toISOString().slice(0, 10);
+          const logs = await dbGet("attendanceLog") || {};
+          const taken = {};
+          Object.entries(logs).forEach(([date, day]) => {
+            if (date < sinceStr || !day) return;
+            Object.values(day).forEach(l => {
+              if (l && l.teacherId) taken[l.teacherId] = (taken[l.teacherId] || 0) + 1;
+            });
           });
+          classLeaders = Object.entries(users)
+            .filter(([_, u]) => u.role === "teacher" || getRolesList(u).includes("teacher"))
+            .map(([uid, u]) => ({ name: u.name, attended: taken[uid] || 0 }))
+            .filter(t => t.attended > 0)
+            .sort((a, b) => b.attended - a.attended)
+            .slice(0, 10);
+        } else {
+          const saved = await dbGet("publicBoard/classes") || {};
+          classLeaders = Object.values(saved).sort((a, b) => (b.attended || 0) - (a.attended || 0)).slice(0, 10);
         }
-        const assigned = {};
-        const dayCount = {};
-        for (let d = new Date(since); d <= new Date(); d.setDate(d.getDate() + 1)) {
-          const name = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][d.getDay()];
-          dayCount[name] = (dayCount[name] || 0) + 1;
-        }
-        for (const deptId of Object.keys(deptsAll)) {
-          const tt = await dbGet(`timetable/${deptId}`) || {};
-          for (const day of DAYS) {
-            for (const s of Object.values(tt[day] || {})) {
-              if (!s.teacherId) continue;
-              assigned[s.teacherId] = (assigned[s.teacherId] || 0) + (dayCount[day] || 0);
-            }
-          }
-        }
-        classLeaders = Object.entries(users)
-          .filter(([_, u]) => u.role === "teacher" || getRolesList(u).includes("teacher"))
-          .map(([uid, u]) => {
-            const a = assigned[uid] || 0;
-            const t = Math.min(taken[uid] || 0, a || (taken[uid] || 0));
-            const rate = a ? t / a : 0;
-            return { name: u.name, attended: t, rate };
-          })
-          .filter(t => t.attended > 0)
-          .sort((a, b) => b.rate - a.rate || b.attended - a.attended)
-          .slice(0, 10);
-        for (const t of classLeaders) {
-          dbSet(`publicBoard/classes/${(t.name || "t").replace(/[.#$/[\]]/g, "_")}`, t).catch(() => {});
-        }
-      } else {
-        const saved = await dbGet("publicBoard/classes") || {};
-        classLeaders = Object.values(saved).sort((a, b) => (b.rate || 0) - (a.rate || 0)).slice(0, 10);
+      } catch (_) {
+        classLeaders = [];
       }
       const classRows = classLeaders.map((t, i) => `<tr>
         <td style="font-weight:700;color:var(--primary);">${i + 1}</td>
@@ -3858,6 +3849,13 @@
     }
 
     // ─── Auth State ─────────────────────────────────────────────
+    // Show login immediately so a slow auth or home load never leaves a blank spinner.
+    renderLogin();
+    setTimeout(() => {
+      const app = document.getElementById("app");
+      if (app && app.querySelector("#loading")) renderLogin();
+    }, 4000);
+
     onAuthStateChanged(auth, async (user) => {
       clearListeners();
       currentUser = user;
