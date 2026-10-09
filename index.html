@@ -629,7 +629,31 @@
       pvc: "Pro Vice Chancellor"
     };
     const DAYS = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
-    const canManageStudents = () => profile && ["exam", "admission"].includes(profile.role);
+    /** Normalize profile.roles (map or array) + profile.role into string[] */
+    function getRolesList(p = profile) {
+      if (!p) return [];
+      if (p.roles && typeof p.roles === "object" && !Array.isArray(p.roles)) {
+        return Object.keys(p.roles).filter(k => p.roles[k]);
+      }
+      if (Array.isArray(p.roles) && p.roles.length) return p.roles.slice();
+      return p.role ? [p.role] : [];
+    }
+    function hasRole(r, p = profile) {
+      return getRolesList(p).includes(r);
+    }
+    function activeRole(p = profile) {
+      if (!p) return null;
+      const list = getRolesList(p);
+      const ar = p.activeRole || p.role;
+      if (ar && list.includes(ar)) return ar;
+      return list[0] || p.role || null;
+    }
+    function rolesToMap(list) {
+      const m = {};
+      (list || []).forEach(r => { if (r) m[r] = true; });
+      return m;
+    }
+    const canManageStudents = () => profile && (hasRole("exam") || hasRole("admission"));
     const ICONS = {
       calendar: `<svg class="widget-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>`,
       alert: `<svg class="widget-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>`,
@@ -891,13 +915,17 @@
       const email = user.email.toLowerCase();
       // Admin hard-coded
       if (email === ADMIN_EMAIL.toLowerCase()) {
+        const existing = await dbGet(`users/${user.uid}`);
         const p = {
           uid: user.uid,
           email,
-          name: user.displayName || "Administrator",
-          photoURL: user.photoURL || "",
+          name: (existing && existing.name) || user.displayName || "Administrator",
+          photoURL: user.photoURL || (existing && existing.photoURL) || "",
           role: "admin",
-          createdAt: Date.now()
+          activeRole: "admin",
+          roles: { ...(existing && existing.roles) || {}, admin: true },
+          department: (existing && existing.department) || "",
+          createdAt: (existing && existing.createdAt) || Date.now()
         };
         await dbSet(`users/${user.uid}`, p);
         await dbSet(`emails/${email.replace(/\./g, ",")}`, user.uid);
@@ -932,12 +960,24 @@
       // Check if admin pre-created a pending profile under pending/{emailKey}
       const pending = await dbGet(`pending/${emailKey}`);
       if (pending) {
+        let roleList = [];
+        if (pending.roles && typeof pending.roles === "object") {
+          roleList = Object.keys(pending.roles).filter(k => pending.roles[k]);
+        } else if (Array.isArray(pending.roles)) {
+          roleList = pending.roles;
+        } else if (pending.role) {
+          roleList = [pending.role];
+        }
+        if (!roleList.length) roleList = ["student"];
+        const primary = roleList[0];
         const p = {
           uid: user.uid,
           email,
           name: pending.name || user.displayName || "User",
           photoURL: user.photoURL || "",
-          role: pending.role,
+          role: primary,
+          activeRole: primary,
+          roles: rolesToMap(roleList),
           department: pending.department || "",
           batch: pending.batch || "",
           bio: "",
@@ -956,11 +996,10 @@
         await dbSet(`users/${user.uid}`, p);
         await dbSet(`emails/${emailKey}`, user.uid);
         await dbRemove(`pending/${emailKey}`);
-        // Add to department/batch indexes
-        if (p.role === "student" && p.department && p.batch) {
+        if (hasRole("student", p) && p.department && p.batch) {
           await dbSet(`deptStudents/${p.department}/${p.batch}/${user.uid}`, true);
         }
-        if (p.role === "teacher" && p.department) {
+        if (hasRole("teacher", p) && p.department) {
           await dbSet(`deptTeachers/${p.department}/${user.uid}`, true);
         }
         return p;
@@ -1008,7 +1047,14 @@
 
     // ─── Render Shell ───────────────────────────────────────────
     function renderShell(contentHtml) {
-      const roleLabel = ROLES[profile.role] || profile.role;
+      const ar = activeRole();
+      const roleLabel = ROLES[ar] || ar;
+      const roleList = getRolesList();
+      const multi = roleList.length > 1;
+      const switcher = multi ? `
+        <select id="role-switch" title="Switch role" style="font-size:0.75rem;font-weight:600;padding:0.25rem 0.45rem;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--primary);max-width:140px;">
+          ${roleList.map(r => `<option value="${esc(r)}" ${r === ar ? "selected" : ""}>${esc(ROLES[r]||r)}</option>`).join("")}
+        </select>` : `<span class="role-badge">${esc(roleLabel)}</span>`;
       document.getElementById("app").innerHTML = `
         <header class="header">
           <div class="header-brand">
@@ -1019,7 +1065,7 @@
             <div class="user-chip">
               <img src="${esc(profile.photoURL || LOGO)}" alt="" onerror="this.src='${LOGO}'" />
               <span class="hide-sm">${esc(profile.name)}</span>
-              <span class="role-badge">${esc(roleLabel)}</span>
+              ${switcher}
             </div>
             <button class="btn btn-outline" id="btn-logout">Logout</button>
           </div>
@@ -1028,6 +1074,16 @@
         <footer class="footer">© Shah Abdul Latif University — LMS · Offline-capable</footer>
       `;
       document.getElementById("btn-logout").onclick = () => signOut(auth);
+      const sw = document.getElementById("role-switch");
+      if (sw) sw.onchange = async () => {
+        const next = sw.value;
+        profile.activeRole = next;
+        profile.role = next; // keep legacy field in sync for active view
+        try { await dbUpdate(`users/${profile.uid}`, { activeRole: next, role: next }); } catch (_) {}
+        await idbSet("profile", profile);
+        toast("Switched to " + (ROLES[next] || next), "success");
+        routeToRole();
+      };
     }
 
     // ─── Tabs helper ────────────────────────────────────────────
@@ -1163,54 +1219,62 @@
       const staffRoles = ["teacher","clerk","finance","exam","admission","pvc"];
 
       let pendingRows = Object.entries(pending)
-        .filter(([_,p]) => p.role !== "student")
-        .map(([ek, p]) => `
+        .filter(([_,p]) => p.role !== "student" && !(p.roles && p.roles.student))
+        .map(([ek, p]) => {
+          const rl = getRolesList(p);
+          const badges = (rl.length ? rl : [p.role]).map(r => `<span class="badge badge-info" style="margin:0 2px;">${esc(ROLES[r]||r)}</span>`).join("");
+          return `
         <tr>
           <td>${esc(p.name)}</td>
           <td>${esc(ek.replace(/,/g,"."))}</td>
-          <td><span class="badge badge-info">${esc(ROLES[p.role]||p.role)}</span></td>
+          <td>${badges}</td>
           <td>${esc(p.department||"—")}</td>
           <td><button class="btn btn-danger btn-sm" data-del-pending="${esc(ek)}">Remove</button></td>
-        </tr>
-      `).join("") || `<tr><td colspan="5" class="empty">No pending staff invitations</td></tr>`;
+        </tr>`;
+        }).join("") || `<tr><td colspan="5" class="empty">No pending staff invitations</td></tr>`;
 
       let userRows = Object.entries(users)
-        .filter(([_,u]) => u.role !== "admin" && u.role !== "student")
-        .map(([uid, u]) => `
+        .filter(([_,u]) => {
+          const rl = getRolesList(u);
+          return !rl.includes("admin") && !rl.includes("student") && u.role !== "admin" && u.role !== "student";
+        })
+        .map(([uid, u]) => {
+          const rl = getRolesList(u);
+          const badges = rl.map(r => `<span class="badge badge-info" style="margin:0 2px;">${esc(ROLES[r]||r)}</span>`).join("") || `<span class="badge badge-info">${esc(ROLES[u.role]||u.role)}</span>`;
+          return `
         <tr>
           <td><img class="avatar-sm" src="${esc(u.photoURL||LOGO)}" onerror="this.style.display='none'" style="vertical-align:middle;margin-right:0.4rem;" />${esc(u.name)}</td>
           <td>${esc(u.email)}</td>
-          <td><span class="badge badge-info">${esc(ROLES[u.role]||u.role)}</span></td>
+          <td>${badges}</td>
           <td>${esc(u.department||"—")}</td>
-          <td>
+          <td style="white-space:nowrap;">
+            <button class="btn btn-outline btn-sm" data-add-role="${esc(uid)}">Add role</button>
             <button class="btn btn-danger btn-sm" data-del-user="${esc(uid)}">Delete</button>
           </td>
-        </tr>
-      `).join("") || `<tr><td colspan="5" class="empty">No staff users yet</td></tr>`;
+        </tr>`;
+        }).join("") || `<tr><td colspan="5" class="empty">No staff users yet</td></tr>`;
 
       return `
         <div class="card">
           <div class="card-title">Invite Staff (not students)</div>
-          <div class="alert alert-info">Students are added by Exam Wing / Admission Wing only. <strong>Department is required only for Teacher and Clerk.</strong></div>
+          <div class="alert alert-info">Students: Exam / Admission only. <strong>Tick one or more roles</strong> (e.g. Teacher + Exam Wing). Department required if Teacher or Clerk is selected. Same email can get extra roles later via “Add role”.</div>
           <form id="form-invite">
             <div class="form-row">
               <div class="form-group"><label>Full Name</label><input name="name" required /></div>
               <div class="form-group"><label>Email</label><input name="email" type="email" required /></div>
             </div>
-            <div class="form-row">
-              <div class="form-group">
-                <label>Role</label>
-                <select name="role" required id="invite-role">
-                  <option value="teacher">Teacher</option>
-                  <option value="clerk">Clerk</option>
-                  <option value="finance">Finance Wing</option>
-                  <option value="exam">Exam Wing</option>
-                  <option value="admission">Admission Wing</option>
-                  <option value="pvc">Pro Vice Chancellor</option>
-                </select>
+            <div class="form-group">
+              <label>Roles (multi-select)</label>
+              <div style="display:flex;flex-wrap:wrap;gap:0.65rem 1rem;font-size:0.875rem;">
+                <label><input type="checkbox" name="roles" value="teacher" checked /> Teacher</label>
+                <label><input type="checkbox" name="roles" value="clerk" /> Clerk</label>
+                <label><input type="checkbox" name="roles" value="finance" /> Finance</label>
+                <label><input type="checkbox" name="roles" value="exam" /> Exam Wing</label>
+                <label><input type="checkbox" name="roles" value="admission" /> Admission</label>
+                <label><input type="checkbox" name="roles" value="pvc" /> PVC</label>
               </div>
-              <div class="form-group"><label>Department <span style="font-weight:400;color:var(--text-muted);">(required for Teacher &amp; Clerk)</span></label><select name="department" id="invite-dept"><option value="">—</option>${deptOpts}</select></div>
             </div>
+            <div class="form-group"><label>Department <span style="font-weight:400;color:var(--text-muted);">(required for Teacher &amp; Clerk)</span></label><select name="department" id="invite-dept"><option value="">—</option>${deptOpts}</select></div>
             <input type="hidden" name="batch" value="" />
             <input type="hidden" name="feesTotal" value="0" />
             <button type="submit" class="btn btn-primary">Invite Staff</button>
@@ -1330,30 +1394,78 @@
       if (formInvite) formInvite.onsubmit = async (e) => {
         e.preventDefault();
         const fd = new FormData(formInvite);
-        const role = fd.get("role");
+        const roleList = fd.getAll("roles").filter(Boolean);
+        if (!roleList.length) {
+          toast("Select at least one role", "error");
+          return;
+        }
         const department = fd.get("department") || "";
-        if ((role === "teacher" || role === "clerk") && !department) {
-          toast("Department is required for Teacher and Clerk", "error");
+        if ((roleList.includes("teacher") || roleList.includes("clerk")) && !department) {
+          toast("Department is required when Teacher or Clerk is selected", "error");
           return;
         }
         const email = fd.get("email").toLowerCase().trim();
         const emailKey = email.replace(/\./g, ",");
         try {
+          // If user already exists, merge roles instead of only pending
+          const existingUid = await dbGet(`emails/${emailKey}`);
+          if (existingUid) {
+            const u = await dbGet(`users/${existingUid}`);
+            if (u) {
+              const merged = [...new Set([...getRolesList(u), ...roleList])];
+              const map = rolesToMap(merged);
+              const updates = { roles: map };
+              if (department && !u.department) updates.department = department;
+              await dbUpdate(`users/${existingUid}`, updates);
+              if (roleList.includes("teacher") && (department || u.department)) {
+                await dbSet(`deptTeachers/${department || u.department}/${existingUid}`, true);
+              }
+              toast("Extra role(s) added to existing account. They can switch roles after refresh/login.", "success");
+              renderAdmin();
+              return;
+            }
+          }
           await dbSet(`pending/${emailKey}`, {
             name: fd.get("name").trim(),
-            role,
+            role: roleList[0],
+            roles: rolesToMap(roleList),
             department,
             batch: fd.get("batch") || "",
             feesTotal: Number(fd.get("feesTotal")||0),
             invitedAt: Date.now()
           });
-          toast("Invitation created. User can now sign in with Google.", "success");
+          toast("Invitation created with " + roleList.length + " role(s). User can sign in with Google.", "success");
           renderAdmin();
         } catch (err) {
           console.error(err);
           toast("Failed to save invite: " + (err.message || err.code || "permission denied — publish updated database rules"), "error");
         }
       };
+
+      document.querySelectorAll("[data-add-role]").forEach(btn => {
+        btn.onclick = async () => {
+          const uid = btn.dataset.addRole;
+          const u = await dbGet(`users/${uid}`);
+          if (!u) return;
+          const pick = prompt(
+            "Add role for " + (u.name || "") + ".\nEnter one of: teacher, clerk, finance, exam, admission, pvc\nCurrent: " + getRolesList(u).join(", "),
+            "exam"
+          );
+          if (!pick) return;
+          const r = pick.trim().toLowerCase();
+          if (!ROLES[r] || r === "admin" || r === "student") {
+            toast("Invalid role", "error");
+            return;
+          }
+          const merged = [...new Set([...getRolesList(u), r])];
+          await dbUpdate(`users/${uid}`, { roles: rolesToMap(merged) });
+          if (r === "teacher" && u.department) {
+            await dbSet(`deptTeachers/${u.department}/${uid}`, true);
+          }
+          toast("Role added: " + (ROLES[r] || r), "success");
+          renderAdmin();
+        };
+      });
 
       document.querySelectorAll("[data-del-pending]").forEach(b => {
         b.onclick = async () => {
@@ -3174,7 +3286,8 @@
     // ─── Router ─────────────────────────────────────────────────
     function routeToRole() {
       activeTab = "dashboard";
-      switch (profile.role) {
+      const r = activeRole();
+      switch (r) {
         case "admin": return renderAdmin();
         case "student": return renderStudent();
         case "teacher": return renderTeacher();
@@ -3184,7 +3297,7 @@
         case "admission": return renderAdmission();
         case "pvc": return renderPVC();
         default:
-          renderShell(`<div class="card"><div class="alert alert-danger">Unknown role: ${esc(profile.role)}. Contact admin.</div></div>`);
+          renderShell(`<div class="card"><div class="alert alert-danger">Unknown role: ${esc(r)}. Contact admin.</div></div>`);
       }
     }
 
@@ -3206,8 +3319,15 @@
           renderLogin();
           return;
         }
+        // Normalize legacy single-role profiles
+        const list = getRolesList(profile);
+        if (!profile.roles || !Object.keys(profile.roles || {}).length) {
+          profile.roles = rolesToMap(list.length ? list : [profile.role].filter(Boolean));
+          profile.activeRole = profile.activeRole || profile.role;
+          try { await dbUpdate(`users/${profile.uid}`, { roles: profile.roles, activeRole: profile.activeRole }); } catch (_) {}
+        }
         // Term-back dropout check
-        if (profile.role === "student" && (profile.termBacks || 0) >= 3) {
+        if (hasRole("student") && (profile.termBacks || 0) >= 3) {
           await dbRemove(`users/${profile.uid}`);
           const ek = profile.email.replace(/\./g, ",");
           await dbRemove(`emails/${ek}`);
