@@ -592,11 +592,27 @@
       <div class="login-card">
         <h1>SALU LMS</h1>
         <p>Shah Abdul Latif University<br/>Ghotki Campus</p>
-        <p style="margin-top:1rem;font-size:0.85rem;color:var(--text-muted);">Opening sign-in…</p>
+        <button class="google-btn" id="btn-google" type="button">Sign in with Google</button>
+        <p id="signin-wait" style="margin-top:0.8rem;font-size:0.8rem;color:var(--text-muted);">Sign-in button is ready. If it does nothing, the connection is still starting.</p>
       </div>
     </div>
   </div>
   <div id="toast-container"></div>
+  <script>
+    window.__signinReady = false;
+    document.getElementById("btn-google").onclick = function () {
+      if (!window.__signinReady) {
+        var el = document.getElementById("signin-wait");
+        if (el) el.textContent = "Still connecting to sign-in. Wait a few seconds and press again.";
+      }
+    };
+    setTimeout(function () {
+      if (!window.__signinReady) {
+        var el = document.getElementById("signin-wait");
+        if (el) el.textContent = "Sign-in did not start. Hard-refresh, or open the site in a private window once.";
+      }
+    }, 12000);
+  </script>
 
   <script type="module">
     // ─── Firebase ───────────────────────────────────────────────
@@ -1144,12 +1160,14 @@
         </div>
       `;
       document.getElementById("btn-google").onclick = async () => {
+        window.__signinReady = true;
         try {
           await signInWithPopup(auth, provider);
         } catch (e) {
           toast("Sign-in failed: " + e.message, "error");
         }
       };
+      window.__signinReady = true;
     }
 
     // ─── Render Shell ───────────────────────────────────────────
