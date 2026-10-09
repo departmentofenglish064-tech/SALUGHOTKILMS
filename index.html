@@ -627,7 +627,14 @@
     const auth = getAuth(app);
     const db = getDatabase(app);
     const provider = new GoogleAuthProvider();
-    renderLogin();
+    const googleBtn = document.getElementById("btn-google");
+    if (googleBtn) googleBtn.onclick = async () => {
+      try { await signInWithPopup(auth, provider); }
+      catch (e) {
+        if (e && e.code === "auth/popup-closed-by-user") return;
+        alert("Sign-in failed: " + (e && e.message ? e.message : e));
+      }
+    };
 
     // ─── Constants ──────────────────────────────────────────────
     const ADMIN_EMAIL = "departmentofenglish064@gmail.com";
