@@ -1,15 +1,22 @@
-const CACHE_NAME = 'salu-lms-v1';
+const CACHE_NAME = 'salu-lms-v3';
 const OFFLINE_URLS = [
   './',
   './index.html',
   './manifest.json',
+  './icons/icon-192.png',
+  './icons/icon-512.png',
+  './icons/icon-180.png',
   './icons/icon-192.svg',
   './icons/icon-512.svg'
 ];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(OFFLINE_URLS))
+    caches.open(CACHE_NAME).then((cache) =>
+      Promise.all(
+        OFFLINE_URLS.map((u) => cache.add(u).catch(() => null))
+      )
+    )
   );
   self.skipWaiting();
 });
@@ -27,11 +34,11 @@ self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
   const url = new URL(event.request.url);
 
-  // Never cache Firebase or Google APIs
   if (url.hostname.includes('firebase') ||
       url.hostname.includes('googleapis') ||
       url.hostname.includes('gstatic') ||
-      url.hostname.includes('google')) {
+      url.hostname.includes('google') ||
+      url.hostname.includes('blogger')) {
     return;
   }
 
@@ -43,7 +50,7 @@ self.addEventListener('fetch', (event) => {
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
         }
         return response;
-      }).catch(() => cached);
+      }).catch(() => cached || caches.match('./index.html'));
       return cached || networkFetch;
     })
   );
