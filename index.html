@@ -588,8 +588,12 @@
 </head>
 <body>
   <div id="app">
-    <div id="loading" class="login-wrap">
-      <div class="spinner"></div>
+    <div class="login-wrap">
+      <div class="login-card">
+        <h1>SALU LMS</h1>
+        <p>Shah Abdul Latif University<br/>Ghotki Campus</p>
+        <p style="margin-top:1rem;font-size:0.85rem;color:var(--text-muted);">Opening sign-in…</p>
+      </div>
     </div>
   </div>
   <div id="toast-container"></div>
@@ -623,7 +627,6 @@
     // ─── Constants ──────────────────────────────────────────────
     const ADMIN_EMAIL = "departmentofenglish064@gmail.com";
     const LOGO = "https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEhKVuDaGpypHWWRbcin_iV8WvcRZpqQRCeNn1vVgjbaZjygpsJH-QGpSe5Psz5Ishh8l_j39Y1zm3TAAEn4q6ZsNLrQe83U80JkrY_qPh9t710JHedVVldoWG7ZJo8s20gtbBK_Li8wdrhEkC_0ibyNFyLA_B6oRlzyzgKqy5OKzkuFRbT1WxjNXivjbalV/s225/images%20(5).jpeg";
-    renderLogin();
     const ROLES = {
       admin: "Admin",
       teacher: "Teacher",
@@ -1003,6 +1006,7 @@
         goOffline(db);
       }
     }
+    function pushId(path) {
       return push(ref(db, path)).key;
     }
 
@@ -1186,11 +1190,7 @@
       document.getElementById("btn-dash").onclick = () => routeToRole();
       document.getElementById("btn-people").onclick = () => renderPeoplePage();
       const syncBtn = document.getElementById("btn-sync");
-      if (syncBtn) syncBtn.onclick = async () => {
-        syncBtn.disabled = true;
-        await studentSyncCycle();
-        syncBtn.disabled = false;
-      };
+      if (syncBtn) syncBtn.onclick = async () => { await studentSyncCycle(); toast("Saved on this phone", "success"); routeToRole(); };
       document.getElementById("btn-my-profile").onclick = (e) => {
         if (e.target.closest("#role-switch")) return;
         openPublicProfile(profile.uid, hasRole("student") ? "student" : "dir");
