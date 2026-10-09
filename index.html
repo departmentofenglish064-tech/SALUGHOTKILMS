@@ -1068,7 +1068,10 @@
             <span>SALU LMS</span>
           </div>
           <div class="header-actions">
-            <div class="user-chip">
+            <button class="btn btn-outline btn-sm" id="btn-home">Home</button>
+            <button class="btn btn-outline btn-sm" id="btn-dash">Dashboard</button>
+            <button class="btn btn-outline btn-sm" id="btn-people">People</button>
+            <div class="user-chip" id="btn-my-profile" title="My public profile" style="cursor:pointer;">
               <img src="${esc(profile.photoURL || LOGO)}" alt="" onerror="this.src='${LOGO}'" />
               <span class="hide-sm">${esc(profile.name)}</span>
               ${switcher}
@@ -1080,6 +1083,13 @@
         <footer class="footer">© Shah Abdul Latif University — LMS · Offline-capable</footer>
       `;
       document.getElementById("btn-logout").onclick = () => signOut(auth);
+      document.getElementById("btn-home").onclick = () => renderLanding();
+      document.getElementById("btn-dash").onclick = () => routeToRole();
+      document.getElementById("btn-people").onclick = () => renderPeoplePage();
+      document.getElementById("btn-my-profile").onclick = (e) => {
+        if (e.target.closest("#role-switch")) return;
+        openPublicProfile(profile.uid, hasRole("student") ? "student" : "dir");
+      };
       const sw = document.getElementById("role-switch");
       if (sw) sw.onchange = async () => {
         const next = sw.value;
@@ -1660,7 +1670,6 @@
       const tabs = [
         { id: "dashboard", label: "Dashboard" },
         { id: "more", label: "Timetable · Marks · Leave" },
-        { id: "people", label: "Teachers" },
         { id: "profile", label: "Profile" }
       ];
       if (!tabs.find(t => t.id === activeTab)) activeTab = "dashboard";
@@ -1967,6 +1976,7 @@
               <textarea name="status" rows="3" maxlength="1400" placeholder="What you are working on…">${esc(profile.status||'')}</textarea>
             </div>
             <div class="form-group"><label>Bio</label><textarea name="bio" rows="3">${esc(profile.bio||'')}</textarea></div>
+            <div class="form-group"><label>Education</label><textarea name="education" rows="2" placeholder="Degrees, universities">${esc(profile.education||'')}</textarea></div>
             <div class="form-group"><label>Research note</label><textarea name="researchHistory" rows="2">${esc(profile.researchHistory||'')}</textarea></div>
             <div class="form-group"><label>Website</label><input name="website" value="${esc(profile.website||'')}" placeholder="https://..." /></div>
             <div class="form-row">
@@ -2018,6 +2028,7 @@
           photoURL: fd.get("photoURL").trim(),
           bio: fd.get("bio").trim(),
           researchHistory: fd.get("researchHistory").trim(),
+          education: (fd.get("education") || "").trim(),
           website: fd.get("website").trim(),
           status: (fd.get("status") || "").trim(),
           social: {
@@ -2122,6 +2133,7 @@
           status: p.status || "",
           website: p.website || "",
           researchHistory: p.researchHistory || "",
+          education: p.education || "",
           papers: p.papers || [],
           books: p.books || [],
           social: p.social || {}
@@ -2138,7 +2150,6 @@
         { id: "dashboard", label: "Dashboard" },
         { id: "attendance", label: "Attendance" },
         { id: "marks", label: "Marks / Exams" },
-        { id: "people", label: "People" },
         { id: "profile", label: "Profile · Leave · Bills" }
       ];
       if (!tabs.find(t => t.id === activeTab)) activeTab = "dashboard";
@@ -3509,82 +3520,200 @@
     }
 
     // ─── Router ─────────────────────────────────────────────────
-    async function peopleDirectoryHtml(canSeeStudents) {
+    async function renderLanding() {
       const dir = await dbGet("directory") || {};
-      const users = canSeeStudents ? (await dbGet("users") || {}) : {};
-      const depts = await dbGet("departments") || {};
-      let cards = Object.entries(dir).map(([uid, p]) => `
-        <button class="card" data-view-person="${esc(uid)}" data-kind="dir" style="text-align:left;cursor:pointer;">
-          <div style="display:flex;gap:0.7rem;align-items:center;">
-            <img class="avatar-sm" src="${esc(p.photoURL||LOGO)}" onerror="this.src='${LOGO}'" />
-            <div>
-              <div style="font-weight:700;">${esc(p.name)}</div>
-              <div style="font-size:0.8rem;color:var(--text-muted);">${esc(ROLES[p.role]||p.role)} · ${esc(depts[p.department]?.name || p.department || "—")}</div>
-              ${p.status ? `<div style="font-size:0.8rem;margin-top:0.25rem;">${esc(p.status.slice(0, 120))}</div>` : ""}
-            </div>
-          </div>
-        </button>`).join("");
-      if (canSeeStudents) {
-        const students = Object.entries(users).filter(([_,u]) => u.role === "student" || getRolesList(u).includes("student"));
-        cards += students.map(([uid, u]) => `
-          <button class="card" data-view-person="${esc(uid)}" data-kind="student" style="text-align:left;cursor:pointer;">
-            <div style="font-weight:700;">${esc(u.name)} <span class="badge badge-info">Student</span></div>
-            <div style="font-size:0.8rem;color:var(--text-muted);">${esc(depts[u.department]?.name || u.department || "—")} · GPA ${u.gpa ? Number(u.gpa).toFixed(2) : "—"}</div>
-          </button>`).join("");
-      }
-      return `<div class="card"><div class="card-title">People</div>
-        <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:0.75rem;">${canSeeStudents ? "Teachers, staff, and students in your access. Student academic details are for counselling." : "Teacher and staff profiles. Fellow students are not listed."}</p>
-        <div class="grid-2">${cards || `<div class="empty">No public profiles yet. Staff must save their profile once.</div>`}</div>
-        <div id="person-detail" style="margin-top:1rem;"></div>
-      </div>`;
-    }
-
-    function bindPeopleHandlers(rerender) {
-      document.querySelectorAll("[data-view-person]").forEach(btn => {
-        btn.onclick = async () => {
-          const uid = btn.dataset.viewPerson;
-          const box = document.getElementById("person-detail");
-          if (!box) return;
-          if (btn.dataset.kind === "student" && (hasRole("teacher") || hasRole("hod") || hasRole("clerk") || hasRole("admin"))) {
-            const u = await dbGet(`users/${uid}`) || {};
-            const att = await dbGet(`subjectAtt/${uid}`) || {};
-            const marks = await dbGet(`marks/${uid}`) || {};
-            const attRows = Object.values(att).map(s => {
-              const pct = s.total ? ((s.present / s.total) * 100).toFixed(0) : "—";
-              return `<div>${esc(s.subject)}: ${pct}% (${s.present||0}/${s.total||0})</div>`;
-            }).join("") || "No attendance yet";
-            const passed = Object.values(marks).filter(m => (m.total100 || m.score || 0) >= 50).map(m => esc(m.subject)).join(", ") || "—";
-            const failed = Object.values(marks).filter(m => (m.total100 || m.score || 0) < 50).map(m => esc(m.subject)).join(", ") || "—";
-            const rem = (u.feesTotal||0) - (u.feesPaid||0);
-            box.innerHTML = `<div class="card">
-              <div class="card-title">${esc(u.name)} · counselling view</div>
-              <p>GPA: <strong>${u.gpa ? Number(u.gpa).toFixed(2) : "—"}</strong> · Term backs: ${u.termBacks||0}</p>
-              <p>Passed: ${passed}</p>
-              <p>Failed: ${failed}</p>
-              <p>Fees paid ${Number(u.feesPaid||0).toLocaleString()} · remaining ${Number(rem).toLocaleString()}</p>
-              <div style="margin-top:0.5rem;">${attRows}</div>
-            </div>`;
-            return;
-          }
-          const p = await dbGet(`directory/${uid}`) || {};
-          const papers = Array.isArray(p.papers) ? p.papers : Object.values(p.papers || {});
-          const books = Array.isArray(p.books) ? p.books : Object.values(p.books || {});
-          box.innerHTML = `<div class="card">
-            <div style="display:flex;gap:0.8rem;align-items:center;">
-              <img class="avatar" src="${esc(p.photoURL||LOGO)}" onerror="this.src='${LOGO}'" />
-              <div>
-                <div style="font-weight:700;font-size:1.1rem;">${esc(p.name)}</div>
-                <div style="color:var(--text-muted);">${esc(ROLES[p.role]||p.role)}</div>
-              </div>
-            </div>
-            ${p.status ? `<div class="alert alert-info" style="margin-top:0.75rem;">${esc(p.status)}</div>` : ""}
-            ${p.bio ? `<p style="margin-top:0.6rem;">${esc(p.bio)}</p>` : ""}
-            ${papers.length ? `<h4 style="margin-top:0.8rem;">Papers</h4>` + papers.map(pp => `<p><strong>${esc(pp.title)}</strong> ${pp.link ? `<a href="${esc(pp.link)}" target="_blank" rel="noopener">Link</a>` : ""}<br/><span style="color:var(--text-muted);font-size:0.85rem;">${esc(pp.abstract||"")}</span></p>`).join("") : ""}
-            ${books.length ? `<h4 style="margin-top:0.8rem;">Books</h4><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:0.75rem;">` + books.map(b => `<div class="card" style="padding:0.5rem;margin:0;">${b.coverURL ? `<img src="${esc(b.coverURL)}" alt="" style="width:100%;height:150px;object-fit:cover;border-radius:8px;" />` : ""}<div style="font-weight:600;font-size:0.85rem;margin-top:0.3rem;">${esc(b.title)}</div>${b.buyURL ? `<a href="${esc(b.buyURL)}" target="_blank" rel="noopener">Purchase</a>` : ""}</div>`).join("") + `</div>` : ""}
+      const votes = await dbGet("votes") || {};
+      const cal = await dbGet("calendar") || {};
+      const anns = await dbGet("announcements") || {};
+      const ranked = Object.entries(dir)
+        .filter(([_, p]) => (p.roles && p.roles.teacher) || p.role === "teacher")
+        .map(([uid, p]) => ({ uid, ...p, votes: Object.keys(votes[uid] || {}).length }))
+        .sort((a, b) => b.votes - a.votes)
+        .slice(0, 10);
+      const events = Object.values(cal).filter(c => c.date >= todayStr()).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 6);
+      const news = Object.values(anns).sort((a, b) => (b.ts || 0) - (a.ts || 0)).slice(0, 5);
+      let boards = "";
+      if (!hasRole("student") || hasRole("teacher")) {
+        const users = await dbGet("users") || {};
+        const depts = await dbGet("departments") || {};
+        const byDept = {};
+        Object.entries(users).forEach(([uid, u]) => {
+          if (u.role !== "student" && !getRolesList(u).includes("student")) return;
+          const d = u.department || "none";
+          (byDept[d] = byDept[d] || []).push({ uid, ...u });
+          dbSet(`publicBoard/${d}/${uid}`, { name: u.name || "", gpa: Number(u.gpa || 0), photoURL: u.photoURL || "", department: d }).catch(() => {});
+        });
+        boards = Object.entries(byDept).map(([d, list]) => {
+          const top = list.sort((a, b) => Number(b.gpa || 0) - Number(a.gpa || 0)).slice(0, 10);
+          return `<div class="card"><div class="card-title">Top students · ${esc(depts[d]?.name || d)}</div>
+            ${top.map((s, i) => `<div class="att-row"><span>${i + 1}. ${esc(s.name)}</span><strong>${Number(s.gpa || 0).toFixed(2)}</strong></div>`).join("") || `<div class="empty">No GPA yet</div>`}
           </div>`;
-        };
+        }).join("");
+      } else {
+        const board = await dbGet("publicBoard") || {};
+        const depts = await dbGet("departments") || {};
+        boards = Object.entries(board).map(([d, people]) => {
+          const top = Object.values(people || {}).sort((a, b) => Number(b.gpa || 0) - Number(a.gpa || 0)).slice(0, 10);
+          return `<div class="card"><div class="card-title">Top students · ${esc(depts[d]?.name || d)}</div>
+            ${top.map((s, i) => `<div class="att-row"><span>${i + 1}. ${esc(s.name)}</span><strong>${Number(s.gpa || 0).toFixed(2)}</strong></div>`).join("") || `<div class="empty">No GPA yet</div>`}
+          </div>`;
+        }).join("");
+      }
+      renderShell(`
+        <div class="card" style="background:linear-gradient(135deg,#eef4ff,#fff);">
+          <div class="card-title">SALU Ghotki · Campus home</div>
+          <p style="color:var(--text-muted);">Calendar, announcements, and the teachers students voted for.</p>
+        </div>
+        <div class="grid-2">
+          <div class="card"><div class="card-title">${ICONS.calendar} Calendar & events</div>
+            ${events.map(c => `<div class="ann-item"><div class="ann-meta">${esc(c.date)} · ${esc(c.type || "event")}</div><div class="ann-body">${esc(c.title)}</div></div>`).join("") || `<div class="empty">No upcoming events</div>`}
+          </div>
+          <div class="card"><div class="card-title">Announcements</div>
+            ${news.map(a => `<div class="ann-item"><div class="ann-meta">${esc(a.byName || "")}${a.subject ? " · " + esc(a.subject) : ""}</div><div class="ann-body">${esc(a.text)}</div></div>`).join("") || `<div class="empty">No announcements</div>`}
+          </div>
+        </div>
+        <div class="card"><div class="card-title">Top 10 teachers by student votes</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:0.75rem;">
+            ${ranked.map((t, i) => `<button class="card" data-open-profile="${esc(t.uid)}" style="margin:0;text-align:center;cursor:pointer;">
+              <div style="font-size:0.75rem;color:var(--primary);font-weight:700;">#${i + 1}</div>
+              <img src="${esc(t.photoURL || LOGO)}" alt="" style="width:72px;height:72px;border-radius:50%;object-fit:cover;margin:0.4rem auto;" onerror="this.src='${LOGO}'" />
+              <div style="font-weight:700;">${esc(t.name)}</div>
+              <div style="font-size:0.8rem;color:var(--text-muted);">${t.votes} votes</div>
+            </button>`).join("") || `<div class="empty">No teacher profiles yet</div>`}
+          </div>
+        </div>
+        ${boards}
+      `);
+      document.querySelectorAll("[data-open-profile]").forEach(b => {
+        b.onclick = () => openPublicProfile(b.dataset.openProfile, "dir");
       });
     }
+
+    async function renderPeoplePage() {
+      const dir = await dbGet("directory") || {};
+      const votes = await dbGet("votes") || {};
+      const teachers = [];
+      const staff = [];
+      Object.entries(dir).forEach(([uid, p]) => {
+        const roles = p.roles ? Object.keys(p.roles).filter(k => p.roles[k]) : [p.role];
+        const card = { uid, ...p, roles, votes: Object.keys(votes[uid] || {}).length };
+        if (roles.includes("teacher") || p.role === "teacher") teachers.push(card);
+        else if (!roles.includes("student")) staff.push(card);
+      });
+      teachers.sort((a, b) => b.votes - a.votes);
+      const tile = (p, tag) => `<button data-open-profile="${esc(p.uid)}" data-kind="dir" style="border:1px solid var(--border);background:#fff;border-radius:16px;padding:0.8rem;text-align:center;cursor:pointer;">
+        <img src="${esc(p.photoURL || LOGO)}" alt="" style="width:84px;height:84px;border-radius:50%;object-fit:cover;" onerror="this.src='${LOGO}'" />
+        <div style="font-weight:700;margin-top:0.4rem;">${esc(p.name)}</div>
+        <span class="badge badge-info">${tag}</span>
+        ${tag === "Professor" ? `<div style="font-size:0.75rem;color:var(--text-muted);margin-top:0.25rem;">${p.votes} votes</div>` : ""}
+      </button>`;
+      let studentTiles = "";
+      if (hasRole("teacher") || hasRole("hod") || hasRole("admin") || hasRole("clerk") || hasRole("exam")) {
+        const users = await dbGet("users") || {};
+        studentTiles = `<h3 style="margin:1rem 0 0.5rem;">Students</h3><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:0.75rem;">
+          ${Object.entries(users).filter(([_, u]) => u.role === "student" || getRolesList(u).includes("student")).map(([uid, u]) => `<button data-open-profile="${esc(uid)}" data-kind="student" style="border:1px solid var(--border);background:#fff;border-radius:16px;padding:0.8rem;text-align:center;cursor:pointer;">
+            <img src="${esc(u.photoURL || LOGO)}" alt="" style="width:84px;height:84px;border-radius:50%;object-fit:cover;" onerror="this.src='${LOGO}'" />
+            <div style="font-weight:700;margin-top:0.4rem;">${esc(u.name)}</div>
+            <span class="badge badge-warning">Student</span>
+          </button>`).join("")}
+        </div>`;
+      }
+      renderShell(`
+        <div class="card"><div class="card-title">People</div>
+          <p style="color:var(--text-muted);font-size:0.9rem;">Professors first, then staff. Tap a photo to open the profile.</p>
+        </div>
+        <h3 style="margin:0.5rem 0;">Professors</h3>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:0.75rem;">${teachers.map(p => tile(p, "Professor")).join("") || `<div class="empty">No professors yet</div>`}</div>
+        <h3 style="margin:1rem 0 0.5rem;">Staff</h3>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:0.75rem;">${staff.map(p => tile(p, "Staff")).join("") || `<div class="empty">No other staff profiles yet</div>`}</div>
+        ${studentTiles}
+      `);
+      document.querySelectorAll("[data-open-profile]").forEach(b => {
+        b.onclick = () => openPublicProfile(b.dataset.openProfile, b.dataset.kind || "dir");
+      });
+    }
+
+    async function openPublicProfile(uid, kind) {
+      if (kind === "student" && (hasRole("teacher") || hasRole("hod") || hasRole("admin") || hasRole("clerk"))) {
+        const u = await dbGet(`users/${uid}`) || {};
+        const att = await dbGet(`subjectAtt/${uid}`) || {};
+        const marks = await dbGet(`marks/${uid}`) || {};
+        const passed = Object.values(marks).filter(m => Number(m.total100 || 0) >= 50).map(m => esc(m.subject)).join(", ") || "—";
+        const failed = Object.values(marks).filter(m => Number(m.total100 || 0) < 50).map(m => esc(m.subject)).join(", ") || "—";
+        renderShell(`<div class="card"><button class="btn btn-outline btn-sm" id="back-people">Back</button>
+          <div class="card-title" style="margin-top:0.75rem;">${esc(u.name)} · Student</div>
+          <p>GPA ${u.gpa ? Number(u.gpa).toFixed(2) : "—"} · Term backs ${u.termBacks || 0}</p>
+          <p>Passed: ${passed}</p><p>Failed: ${failed}</p>
+          <p>Fees remaining ${((u.feesTotal || 0) - (u.feesPaid || 0)).toLocaleString()}</p>
+          ${Object.values(att).map(s => `<div>${esc(s.subject)}: ${s.total ? Math.round(s.present / s.total * 100) : 0}%</div>`).join("")}
+        </div>`);
+        document.getElementById("back-people").onclick = () => renderPeoplePage();
+        return;
+      }
+      const p = (uid === profile.uid ? profile : null) || await dbGet(`directory/${uid}`) || await dbGet(`users/${uid}`) || {};
+      const follows = await dbGet(`follows/${uid}`) || {};
+      const votes = await dbGet(`votes/${uid}`) || {};
+      const following = !!follows[profile.uid];
+      const voted = !!votes[profile.uid];
+      const papers = Array.isArray(p.papers) ? p.papers : Object.values(p.papers || {});
+      const books = Array.isArray(p.books) ? p.books : Object.values(p.books || {});
+      const social = p.social || {};
+      const isTeacher = (p.roles && p.roles.teacher) || p.role === "teacher" || getRolesList(p).includes("teacher");
+      renderShell(`
+        <div class="card" style="background:linear-gradient(160deg,#e8eef8,#fff);">
+          <button class="btn btn-outline btn-sm" id="back-people">Back</button>
+          <div style="display:flex;gap:1rem;align-items:center;margin-top:1rem;flex-wrap:wrap;">
+            <img src="${esc(p.photoURL || LOGO)}" alt="" style="width:96px;height:96px;border-radius:50%;object-fit:cover;border:3px solid #fff;" onerror="this.src='${LOGO}'" />
+            <div>
+              <div style="font-size:1.4rem;font-weight:700;">${esc(p.name || "Profile")}</div>
+              <span class="badge badge-info">${isTeacher ? "Professor" : (p.role === "student" ? "Student" : "Staff")}</span>
+              <div style="margin-top:0.35rem;color:var(--text-muted);">${Object.keys(follows).length} followers${isTeacher ? ` · ${Object.keys(votes).length} votes` : ""}</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:0.5rem;margin-top:0.8rem;flex-wrap:wrap;">
+            ${uid !== profile.uid ? `<button class="btn btn-primary btn-sm" id="btn-follow">${following ? "Unfollow" : "Follow"}</button>` : ""}
+            ${uid !== profile.uid && isTeacher && hasRole("student") ? `<button class="btn btn-outline btn-sm" id="btn-vote">${voted ? "Remove vote" : "Upvote"}</button>` : ""}
+          </div>
+          ${p.status ? `<div class="alert alert-info" style="margin-top:0.8rem;">${esc(p.status)}</div>` : ""}
+        </div>
+        <div class="grid-2">
+          <div class="card"><div class="card-title">About</div>
+            <p>${esc(p.bio || "No bio yet")}</p>
+            ${p.education ? `<p style="margin-top:0.5rem;"><strong>Education</strong><br/>${esc(p.education)}</p>` : ""}
+            ${p.researchHistory ? `<p style="margin-top:0.5rem;"><strong>Research</strong><br/>${esc(p.researchHistory)}</p>` : ""}
+            ${p.website ? `<p style="margin-top:0.5rem;"><a href="${esc(p.website)}" target="_blank" rel="noopener">Website</a></p>` : ""}
+            <p style="margin-top:0.5rem;">${social.linkedin ? `<a href="${esc(social.linkedin)}" target="_blank" rel="noopener">LinkedIn</a> ` : ""}${social.twitter ? `<a href="${esc(social.twitter)}" target="_blank" rel="noopener">X</a> ` : ""}${social.orcid ? `<a href="${esc(social.orcid)}" target="_blank" rel="noopener">ORCID</a>` : ""}</p>
+          </div>
+          <div class="card"><div class="card-title">Papers</div>
+            ${papers.map(pp => `<p><strong>${esc(pp.title)}</strong> ${pp.link ? `<a href="${esc(pp.link)}" target="_blank" rel="noopener">Link</a>` : ""}<br/><span style="color:var(--text-muted);font-size:0.85rem;">${esc(pp.abstract || "")}</span></p>`).join("") || `<div class="empty">No papers yet</div>`}
+          </div>
+        </div>
+        <div class="card"><div class="card-title">Books</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:0.75rem;">
+            ${books.map(b => `<div class="card" style="margin:0;padding:0.5rem;">${b.coverURL ? `<img src="${esc(b.coverURL)}" alt="" style="width:100%;height:160px;object-fit:cover;border-radius:8px;" />` : ""}<div style="font-weight:600;margin-top:0.3rem;">${esc(b.title)}</div>${b.buyURL ? `<a href="${esc(b.buyURL)}" target="_blank" rel="noopener">Purchase</a>` : ""}</div>`).join("") || `<div class="empty">No books yet</div>`}
+          </div>
+        </div>
+      `);
+      document.getElementById("back-people").onclick = () => renderPeoplePage();
+      const fbtn = document.getElementById("btn-follow");
+      if (fbtn) fbtn.onclick = async () => {
+        if (following) await dbRemove(`follows/${uid}/${profile.uid}`);
+        else await dbSet(`follows/${uid}/${profile.uid}`, true);
+        openPublicProfile(uid, kind);
+      };
+      const vbtn = document.getElementById("btn-vote");
+      if (vbtn) vbtn.onclick = async () => {
+        if (voted) await dbRemove(`votes/${uid}/${profile.uid}`);
+        else await dbSet(`votes/${uid}/${profile.uid}`, true);
+        openPublicProfile(uid, kind);
+      };
+    }
+
+    async function peopleDirectoryHtml(canSeeStudents) {
+      return `<div class="card"><div class="empty">People is now in the top bar.</div></div>`;
+    }
+
+    function bindPeopleHandlers() {}
 
     async function renderHOD() {
       clearListeners();
@@ -3680,7 +3809,7 @@
           return;
         }
         await idbSet("profile", profile);
-        routeToRole();
+        renderLanding();
       } catch (e) {
         console.error(e);
         toast("Error loading profile: " + e.message, "error");
