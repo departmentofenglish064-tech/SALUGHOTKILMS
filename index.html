@@ -598,50 +598,6 @@
     </div>
   </div>
   <div id="toast-container"></div>
-  <script>
-    window.__signinReady = false;
-    document.getElementById("btn-google").onclick = function () {
-      if (!window.__signinReady) {
-        var el = document.getElementById("signin-wait");
-        if (el) el.textContent = "Still connecting to sign-in. Wait a few seconds and press again.";
-      }
-    };
-    setTimeout(function () {
-      if (!window.__signinReady) {
-        var el = document.getElementById("signin-wait");
-        if (el) el.textContent = "Sign-in did not start. Hard-refresh, or open the site in a private window once.";
-      }
-    }, 12000);
-  </script>
-
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-app.js";
-    import { getAuth, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-auth.js";
-    const firebaseConfig = {
-      apiKey: "AIzaSyCHC23BiSkd4dIm8iFIfmTRjZg1RY1dDEU",
-      authDomain: "lms-salu-ghotki.firebaseapp.com",
-      projectId: "lms-salu-ghotki",
-      storageBucket: "lms-salu-ghotki.firebasestorage.app",
-      messagingSenderId: "697640974761",
-      appId: "1:697640974761:web:1e0b7b9b3615ea7b956cb8",
-      databaseURL: "https://lms-salu-ghotki-default-rtdb.asia-southeast1.firebasedatabase.app"
-    };
-    try {
-      const auth = getAuth(initializeApp(firebaseConfig));
-      const provider = new GoogleAuthProvider();
-      window.__signinReady = true;
-      const wait = document.getElementById("signin-wait");
-      if (wait) wait.textContent = "Sign-in is ready.";
-      const btn = document.getElementById("btn-google");
-      if (btn) btn.onclick = async () => {
-        try { await signInWithPopup(auth, provider); }
-        catch (e) { alert("Sign-in failed: " + (e && e.message ? e.message : e)); }
-      };
-    } catch (e) {
-      const wait = document.getElementById("signin-wait");
-      if (wait) wait.textContent = "Sign-in could not start: " + (e && e.message ? e.message : e);
-    }
-  </script>
 
   <script type="module">
     // ─── Firebase ───────────────────────────────────────────────
@@ -1193,6 +1149,7 @@
         try {
           await signInWithPopup(auth, provider);
         } catch (e) {
+          if (e && e.code === "auth/popup-closed-by-user") return;
           toast("Sign-in failed: " + e.message, "error");
         }
       };
