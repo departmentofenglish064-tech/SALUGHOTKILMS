@@ -48,7 +48,7 @@ self.addEventListener('fetch', (event) => {
         return response;
       }).catch(() => cached || caches.match('./index.html'));
       const isPage = url.pathname.endsWith('/') || url.pathname.endsWith('.html') || url.pathname.endsWith('index.html');
-      return isPage ? networkFetch : (cached || networkFetch);
+      return cached || networkFetch;
     })
   );
 });
