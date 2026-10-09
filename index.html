@@ -631,7 +631,8 @@
       finance: "Finance Wing",
       exam: "Exam Wing",
       admission: "Admission Wing",
-      pvc: "Pro Vice Chancellor"
+      pvc: "Pro Vice Chancellor",
+      hod: "Head of Department"
     };
     const DAYS = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
     /** Normalize profile.roles (map or array) + profile.role into string[] */
@@ -1223,8 +1224,21 @@
       const deptOpts = Object.entries(depts).map(([id,d]) => `<option value="${esc(id)}">${esc(d.name)}</option>`).join("");
       const staffRoles = ["teacher","clerk","finance","exam","admission","pvc"];
 
+      // Hide invites whose email already belongs to a joined account. Never touch users/ here.
+      const emailMap = await dbGet("emails") || {};
+      const joinedEmails = new Set(
+        Object.values(users).map(u => (u.email || "").toLowerCase().trim()).filter(Boolean)
+      );
+      Object.keys(emailMap).forEach(k => joinedEmails.add(k.replace(/,/g, ".").toLowerCase()));
       let pendingRows = Object.entries(pending)
-        .filter(([_,p]) => p.role !== "student" && !(p.roles && p.roles.student))
+        .filter(([ek, p]) => {
+          if (p.role === "student" || (p.roles && p.roles.student)) return false;
+          const email = (ek || "").replace(/,/g, ".").toLowerCase().trim();
+          const alt = (p.email || "").toLowerCase().trim();
+          if (joinedEmails.has(email) || (alt && joinedEmails.has(alt))) return false;
+          if (emailMap[ek]) return false;
+          return true;
+        })
         .map(([ek, p]) => {
           const rl = getRolesList(p);
           const badges = (rl.length ? rl : [p.role]).map(r => `<span class="badge badge-info" style="margin:0 2px;">${esc(ROLES[r]||r)}</span>`).join("");
@@ -1254,6 +1268,7 @@
           <td>${esc(u.department||"—")}</td>
           <td style="white-space:nowrap;">
             <button class="btn btn-outline btn-sm" data-add-role="${esc(uid)}">Add role</button>
+            <button class="btn btn-outline btn-sm" data-hod="${esc(uid)}">${getRolesList(u).includes("hod") ? "Remove HOD" : "Make HOD"}</button>
             <button class="btn btn-danger btn-sm" data-del-user="${esc(uid)}">Delete</button>
           </td>
         </tr>`;
@@ -1277,6 +1292,7 @@
                 <label><input type="checkbox" name="roles" value="exam" /> Exam Wing</label>
                 <label><input type="checkbox" name="roles" value="admission" /> Admission</label>
                 <label><input type="checkbox" name="roles" value="pvc" /> PVC</label>
+                <label><input type="checkbox" name="roles" value="hod" /> HOD</label>
               </div>
             </div>
             <div class="form-group"><label>Department <span style="font-weight:400;color:var(--text-muted);">(required for Teacher &amp; Clerk)</span></label><select name="department" id="invite-dept"><option value="">—</option>${deptOpts}</select></div>
@@ -1467,7 +1483,53 @@
           if (r === "teacher" && u.department) {
             await dbSet(`deptTeachers/${u.department}/${uid}`, true);
           }
-          toast("Role added: " + (ROLES[r] || r), "success");
+          toast("Role added: " + (ROLES[r] || r) + ". Existing profile data was kept.", "success");
+          renderAdmin();
+        };
+      });
+
+      document.querySelectorAll("[data-hod]").forEach(btn => {
+        btn.onclick = async () => {
+          const uid = btn.dataset.hod;
+          const u = await dbGet(`users/${uid}`);
+          if (!u) return;
+          const list = getRolesList(u);
+          if (!list.includes("teacher") && u.role !== "teacher") {
+            toast("HOD can only be assigned to a teacher", "error");
+            return;
+          }
+          if (!u.department) {
+            toast("Teacher needs a department before becoming HOD", "error");
+            return;
+          }
+          if (list.includes("hod")) {
+            if (!confirm("Remove HOD from " + (u.name || "this teacher") + "? Their teacher account and data stay.")) return;
+            const next = list.filter(r => r !== "hod");
+            const updates = { roles: rolesToMap(next) };
+            if ((u.activeRole || u.role) === "hod") {
+              updates.activeRole = "teacher";
+              updates.role = "teacher";
+            }
+            await dbUpdate(`users/${uid}`, updates);
+            toast("HOD removed. Teacher data kept.", "success");
+          } else {
+            if (!confirm("Make " + (u.name || "this teacher") + " HOD of their department? Other HOD in the same department will lose only the HOD role.")) return;
+            const all = await dbGet("users") || {};
+            for (const [oid, ou] of Object.entries(all)) {
+              if (oid === uid) continue;
+              if (ou.department === u.department && getRolesList(ou).includes("hod")) {
+                const nl = getRolesList(ou).filter(r => r !== "hod");
+                const upd = { roles: rolesToMap(nl) };
+                if ((ou.activeRole || ou.role) === "hod") {
+                  upd.activeRole = "teacher";
+                  upd.role = "teacher";
+                }
+                await dbUpdate(`users/${oid}`, upd);
+              }
+            }
+            await dbUpdate(`users/${uid}`, { roles: rolesToMap([...list, "hod"]) });
+            toast("HOD assigned. Teacher profile unchanged.", "success");
+          }
           renderAdmin();
         };
       });
@@ -1598,6 +1660,7 @@
       const tabs = [
         { id: "dashboard", label: "Dashboard" },
         { id: "more", label: "Timetable · Marks · Leave" },
+        { id: "people", label: "Teachers" },
         { id: "profile", label: "Profile" }
       ];
       if (!tabs.find(t => t.id === activeTab)) activeTab = "dashboard";
@@ -1670,6 +1733,8 @@
           ${await studentAnnHtml()}
           ${leaveFormHtml("student")}
         `;
+      } else if (activeTab === "people") {
+        body = await peopleDirectoryHtml(false);
       } else if (activeTab === "profile") {
         body = profileEditHtml();
       }
@@ -1677,6 +1742,7 @@
       renderShell(`${tabsHtml(tabs, activeTab)}${body}`);
       bindTabs(renderStudent);
       bindProfileForm();
+      bindPeopleHandlers(renderStudent);
       if (activeTab === "more") {
         bindLeaveForm(renderStudent);
         const msBtn = document.getElementById("btn-marksheet");
@@ -1865,9 +1931,9 @@
       const items = Object.entries(anns)
         .filter(([_,a]) => {
           if (a.department && a.department !== profile.department) return false;
+          if (a.batch && profile.batch && a.batch !== profile.batch) return false;
           if (a.subject) {
-            // Subject-specific: only students linked to that subject (or same dept if no subjectAtt yet — show if dept matches and subject set)
-            if (mySubjects.size === 0) return a.department === profile.department;
+            if (mySubjects.size === 0) return a.department === profile.department && (!a.batch || a.batch === profile.batch);
             return mySubjects.has(String(a.subject).toLowerCase());
           }
           return !a.department || a.department === profile.department;
@@ -1897,8 +1963,11 @@
           </div>
           <form id="form-profile">
             <div class="form-group"><label>Photo URL</label><input name="photoURL" value="${esc(profile.photoURL||'')}" placeholder="https://..." /></div>
+            <div class="form-group"><label>Status (one post, max 200 words — shown on public profile)</label>
+              <textarea name="status" rows="3" maxlength="1400" placeholder="What you are working on…">${esc(profile.status||'')}</textarea>
+            </div>
             <div class="form-group"><label>Bio</label><textarea name="bio" rows="3">${esc(profile.bio||'')}</textarea></div>
-            <div class="form-group"><label>Research History</label><textarea name="researchHistory" rows="3">${esc(profile.researchHistory||'')}</textarea></div>
+            <div class="form-group"><label>Research note</label><textarea name="researchHistory" rows="2">${esc(profile.researchHistory||'')}</textarea></div>
             <div class="form-group"><label>Website</label><input name="website" value="${esc(profile.website||'')}" placeholder="https://..." /></div>
             <div class="form-row">
               <div class="form-group"><label>LinkedIn</label><input name="linkedin" value="${esc(s.linkedin||'')}" /></div>
@@ -1911,6 +1980,29 @@
             <button type="submit" class="btn btn-primary">Save Profile</button>
           </form>
         </div>
+        ${hasRole("student") && !hasRole("teacher") ? "" : `
+        <div class="card">
+          <div class="card-title">${ICONS.book} Research papers</div>
+          <form id="form-paper">
+            <div class="form-group"><label>Title</label><input name="title" required /></div>
+            <div class="form-group"><label>Link</label><input name="link" placeholder="https://..." /></div>
+            <div class="form-group"><label>Idea / abstract</label><textarea name="abstract" rows="2"></textarea></div>
+            <button type="submit" class="btn btn-primary btn-sm">Add paper</button>
+          </form>
+          <div id="paper-list" style="margin-top:0.75rem;"></div>
+        </div>
+        <div class="card">
+          <div class="card-title">${ICONS.book} Books</div>
+          <form id="form-book">
+            <div class="form-group"><label>Title</label><input name="title" required /></div>
+            <div class="form-row">
+              <div class="form-group"><label>Cover image URL</label><input name="coverURL" placeholder="https://..." /></div>
+              <div class="form-group"><label>Purchase link</label><input name="buyURL" placeholder="https://..." /></div>
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm">Add book</button>
+          </form>
+          <div id="book-list" style="margin-top:0.75rem;"></div>
+        </div>`}
       `;
     }
 
@@ -1920,11 +2012,14 @@
       form.onsubmit = async (e) => {
         e.preventDefault();
         const fd = new FormData(form);
+        const words = (fd.get("status") || "").trim().split(/\s+/).filter(Boolean);
+        if (words.length > 200) { toast("Status must be 200 words or fewer", "error"); return; }
         const updates = {
           photoURL: fd.get("photoURL").trim(),
           bio: fd.get("bio").trim(),
           researchHistory: fd.get("researchHistory").trim(),
           website: fd.get("website").trim(),
+          status: (fd.get("status") || "").trim(),
           social: {
             linkedin: fd.get("linkedin").trim(),
             twitter: fd.get("twitter").trim(),
@@ -1934,6 +2029,7 @@
         };
         await dbUpdate(`users/${profile.uid}`, updates);
         Object.assign(profile, updates);
+        await publishDirectory(profile);
         toast("Profile saved", "success");
         // re-render current role view
         routeToRole();
@@ -1943,6 +2039,94 @@
         const img = document.getElementById("preview-avatar");
         if (img && photoInp.value) img.src = photoInp.value;
       };
+      renderWorksLists();
+      const formPaper = document.getElementById("form-paper");
+      if (formPaper) formPaper.onsubmit = async (e) => {
+        e.preventDefault();
+        const fd = new FormData(formPaper);
+        const papers = Array.isArray(profile.papers) ? profile.papers.slice() : Object.values(profile.papers || {});
+        papers.push({ title: fd.get("title").trim(), link: (fd.get("link")||"").trim(), abstract: (fd.get("abstract")||"").trim(), ts: Date.now() });
+        await dbUpdate(`users/${profile.uid}`, { papers });
+        profile.papers = papers;
+        await publishDirectory(profile);
+        toast("Paper added", "success");
+        renderWorksLists();
+        formPaper.reset();
+      };
+      const formBook = document.getElementById("form-book");
+      if (formBook) formBook.onsubmit = async (e) => {
+        e.preventDefault();
+        const fd = new FormData(formBook);
+        const books = Array.isArray(profile.books) ? profile.books.slice() : Object.values(profile.books || {});
+        books.push({ title: fd.get("title").trim(), coverURL: (fd.get("coverURL")||"").trim(), buyURL: (fd.get("buyURL")||"").trim(), ts: Date.now() });
+        await dbUpdate(`users/${profile.uid}`, { books });
+        profile.books = books;
+        await publishDirectory(profile);
+        toast("Book added", "success");
+        renderWorksLists();
+        formBook.reset();
+      };
+    }
+
+    function renderWorksLists() {
+      const papers = Array.isArray(profile.papers) ? profile.papers : Object.values(profile.papers || {});
+      const books = Array.isArray(profile.books) ? profile.books : Object.values(profile.books || {});
+      const pBox = document.getElementById("paper-list");
+      if (pBox) pBox.innerHTML = papers.map((p, i) => `
+        <div class="att-row" style="margin-bottom:0.35rem;align-items:flex-start;">
+          <span><strong>${esc(p.title)}</strong>${p.link ? ` · <a href="${esc(p.link)}" target="_blank" rel="noopener">Link</a>` : ""}<div style="font-size:0.8rem;color:var(--text-muted);">${esc(p.abstract||"")}</div></span>
+          <button class="btn btn-danger btn-sm" data-del-paper="${i}">Remove</button>
+        </div>`).join("") || `<div class="empty" style="padding:0.4rem;">No papers yet</div>`;
+      const bBox = document.getElementById("book-list");
+      if (bBox) bBox.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:0.75rem;">` + (books.map((b, i) => `
+        <div class="card" style="padding:0.6rem;margin:0;">
+          ${b.coverURL ? `<img src="${esc(b.coverURL)}" alt="" style="width:100%;height:160px;object-fit:cover;border-radius:8px;" />` : ""}
+          <div style="font-weight:600;font-size:0.85rem;margin-top:0.4rem;">${esc(b.title)}</div>
+          ${b.buyURL ? `<a href="${esc(b.buyURL)}" target="_blank" rel="noopener" style="font-size:0.8rem;">Buy</a>` : ""}
+          <button class="btn btn-danger btn-sm" data-del-book="${i}" style="margin-top:0.35rem;">Remove</button>
+        </div>`).join("") || `<div class="empty">No books yet</div>`) + `</div>`;
+      document.querySelectorAll("[data-del-paper]").forEach(btn => {
+        btn.onclick = async () => {
+          const papers2 = (Array.isArray(profile.papers) ? profile.papers : Object.values(profile.papers || {})).filter((_, i) => i !== Number(btn.dataset.delPaper));
+          await dbUpdate(`users/${profile.uid}`, { papers: papers2 });
+          profile.papers = papers2;
+          await publishDirectory(profile);
+          renderWorksLists();
+        };
+      });
+      document.querySelectorAll("[data-del-book]").forEach(btn => {
+        btn.onclick = async () => {
+          const books2 = (Array.isArray(profile.books) ? profile.books : Object.values(profile.books || {})).filter((_, i) => i !== Number(btn.dataset.delBook));
+          await dbUpdate(`users/${profile.uid}`, { books: books2 });
+          profile.books = books2;
+          await publishDirectory(profile);
+          renderWorksLists();
+        };
+      });
+    }
+
+    async function publishDirectory(p) {
+      if (!p || !p.uid) return;
+      const roles = getRolesList(p);
+      if (roles.includes("student")) return;
+      try {
+        await dbSet(`directory/${p.uid}`, {
+          uid: p.uid,
+          name: p.name || "",
+          email: p.email || "",
+          photoURL: p.photoURL || "",
+          role: p.role || roles[0] || "",
+          roles: rolesToMap(roles),
+          department: p.department || "",
+          bio: p.bio || "",
+          status: p.status || "",
+          website: p.website || "",
+          researchHistory: p.researchHistory || "",
+          papers: p.papers || [],
+          books: p.books || [],
+          social: p.social || {}
+        });
+      } catch (_) {}
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -1954,6 +2138,7 @@
         { id: "dashboard", label: "Dashboard" },
         { id: "attendance", label: "Attendance" },
         { id: "marks", label: "Marks / Exams" },
+        { id: "people", label: "People" },
         { id: "profile", label: "Profile · Leave · Bills" }
       ];
       if (!tabs.find(t => t.id === activeTab)) activeTab = "dashboard";
@@ -1965,6 +2150,8 @@
         body = await teacherAttHtml();
       } else if (activeTab === "marks") {
         body = (await teacherMarksHtml()) + (await teacherAnnHtml());
+      } else if (activeTab === "people") {
+        body = await peopleDirectoryHtml(true);
       } else if (activeTab === "profile") {
         body = profileEditHtml() + leaveFormHtml("teacher") + `
           <div class="card">
@@ -1985,6 +2172,7 @@
       bindTabs(renderTeacher);
       bindProfileForm();
       bindTeacherHandlers();
+      bindPeopleHandlers(renderTeacher);
       document.querySelectorAll("[data-goto-tab]").forEach(b => {
         b.onclick = () => { activeTab = b.dataset.gotoTab; renderTeacher(); };
       });
@@ -2109,6 +2297,21 @@
                 </div>`;
               }).join("") || `<div class="empty">No classes scheduled today — ask Clerk to add timetable slots with your name</div>`}
             </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">${ICONS.calendar} Weekly schedule</div>
+          <div class="tt-grid">
+            ${DAYS.map(day => {
+              const daySlots = Object.entries(tt[day] || {}).filter(([_,s]) => s.teacherId === profile.uid)
+                .sort((a,b) => timeToMin(a[1].start) - timeToMin(b[1].start));
+              if (!daySlots.length) return "";
+              return daySlots.map(([_,s]) => `<div class="tt-slot">
+                <div class="tt-time">${day} · ${fmtTime(s.start)} – ${fmtTime(s.end)}</div>
+                <div class="tt-subject">${esc(s.subject)}</div>
+                <div class="tt-meta">${esc(s.batchName||s.batch||"")} · ${esc(s.room||"")}</div>
+              </div>`).join("");
+            }).join("") || `<div class="empty">No weekly classes assigned yet</div>`}
           </div>
         </div>
         ${await (async () => {
@@ -2279,8 +2482,20 @@
 
     async function teacherAnnHtml() {
       const anns = await dbGet("announcements") || {};
+      const tt = profile.department ? (await dbGet(`timetable/${profile.department}`) || {}) : {};
+      const subjects = new Map();
+      for (const day of DAYS) {
+        for (const [sid, s] of Object.entries(tt[day] || {})) {
+          if (s.teacherId !== profile.uid || !s.subject) continue;
+          const key = s.subject;
+          if (!subjects.has(key)) subjects.set(key, { subject: s.subject, batch: s.batch || "", batchName: s.batchName || "" });
+        }
+      }
+      const subOpts = [...subjects.values()].map(s =>
+        `<option value="${esc(s.subject)}" data-batch="${esc(s.batch)}">${esc(s.subject)}${s.batchName ? " · " + esc(s.batchName) : ""}</option>`
+      ).join("");
       const items = Object.entries(anns)
-        .filter(([_,a]) => a.department === profile.department || a.by === profile.uid)
+        .filter(([_,a]) => a.by === profile.uid || a.department === profile.department)
         .sort((a,b) => (b[1].ts||0)-(a[1].ts||0))
         .map(([id,a]) => `
           <div class="ann-item">
@@ -2291,15 +2506,17 @@
         `).join("") || `<div class="empty">No announcements</div>`;
       return `
         <div class="card">
-          <div class="card-title">Post Announcement (by subject)</div>
-          <div class="alert alert-info">Students linked to that subject (same department) will see it.</div>
+          <div class="card-title">Announcement for a timetable subject</div>
+          <div class="alert alert-info">Subjects come from your department timetable. Students in that subject’s batch see it.</div>
           <form id="form-tann">
-            <div class="form-group"><label>Subject</label><input name="subject" required placeholder="e.g. Literary Theory" /></div>
+            <div class="form-group"><label>Subject</label>
+              <select name="subject" required>${subOpts || `<option value="">No subjects on your timetable yet</option>`}</select>
+            </div>
             <div class="form-group"><label>Message</label><textarea name="text" rows="3" required></textarea></div>
-            <button type="submit" class="btn btn-primary">Post to subject</button>
+            <button type="submit" class="btn btn-primary" ${subOpts ? "" : "disabled"}>Post to subject</button>
           </form>
         </div>
-        <div class="card"><div class="card-title">Your / Department Announcements</div>${items}</div>
+        <div class="card"><div class="card-title">Your announcements</div>${items}</div>
       `;
     }
 
@@ -2479,10 +2696,13 @@
       if (formTann) formTann.onsubmit = async (e) => {
         e.preventDefault();
         const fd = new FormData(formTann);
+        const sel = formTann.querySelector('[name="subject"]');
+        const opt = sel && sel.selectedOptions ? sel.selectedOptions[0] : null;
         const id = pushId("announcements");
         await dbSet(`announcements/${id}`, {
           text: fd.get("text").trim(),
           subject: (fd.get("subject") || "").trim(),
+          batch: opt ? (opt.dataset.batch || "") : "",
           department: profile.department,
           by: profile.uid,
           byName: profile.name,
@@ -3289,6 +3509,121 @@
     }
 
     // ─── Router ─────────────────────────────────────────────────
+    async function peopleDirectoryHtml(canSeeStudents) {
+      const dir = await dbGet("directory") || {};
+      const users = canSeeStudents ? (await dbGet("users") || {}) : {};
+      const depts = await dbGet("departments") || {};
+      let cards = Object.entries(dir).map(([uid, p]) => `
+        <button class="card" data-view-person="${esc(uid)}" data-kind="dir" style="text-align:left;cursor:pointer;">
+          <div style="display:flex;gap:0.7rem;align-items:center;">
+            <img class="avatar-sm" src="${esc(p.photoURL||LOGO)}" onerror="this.src='${LOGO}'" />
+            <div>
+              <div style="font-weight:700;">${esc(p.name)}</div>
+              <div style="font-size:0.8rem;color:var(--text-muted);">${esc(ROLES[p.role]||p.role)} · ${esc(depts[p.department]?.name || p.department || "—")}</div>
+              ${p.status ? `<div style="font-size:0.8rem;margin-top:0.25rem;">${esc(p.status.slice(0, 120))}</div>` : ""}
+            </div>
+          </div>
+        </button>`).join("");
+      if (canSeeStudents) {
+        const students = Object.entries(users).filter(([_,u]) => u.role === "student" || getRolesList(u).includes("student"));
+        cards += students.map(([uid, u]) => `
+          <button class="card" data-view-person="${esc(uid)}" data-kind="student" style="text-align:left;cursor:pointer;">
+            <div style="font-weight:700;">${esc(u.name)} <span class="badge badge-info">Student</span></div>
+            <div style="font-size:0.8rem;color:var(--text-muted);">${esc(depts[u.department]?.name || u.department || "—")} · GPA ${u.gpa ? Number(u.gpa).toFixed(2) : "—"}</div>
+          </button>`).join("");
+      }
+      return `<div class="card"><div class="card-title">People</div>
+        <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:0.75rem;">${canSeeStudents ? "Teachers, staff, and students in your access. Student academic details are for counselling." : "Teacher and staff profiles. Fellow students are not listed."}</p>
+        <div class="grid-2">${cards || `<div class="empty">No public profiles yet. Staff must save their profile once.</div>`}</div>
+        <div id="person-detail" style="margin-top:1rem;"></div>
+      </div>`;
+    }
+
+    function bindPeopleHandlers(rerender) {
+      document.querySelectorAll("[data-view-person]").forEach(btn => {
+        btn.onclick = async () => {
+          const uid = btn.dataset.viewPerson;
+          const box = document.getElementById("person-detail");
+          if (!box) return;
+          if (btn.dataset.kind === "student" && (hasRole("teacher") || hasRole("hod") || hasRole("clerk") || hasRole("admin"))) {
+            const u = await dbGet(`users/${uid}`) || {};
+            const att = await dbGet(`subjectAtt/${uid}`) || {};
+            const marks = await dbGet(`marks/${uid}`) || {};
+            const attRows = Object.values(att).map(s => {
+              const pct = s.total ? ((s.present / s.total) * 100).toFixed(0) : "—";
+              return `<div>${esc(s.subject)}: ${pct}% (${s.present||0}/${s.total||0})</div>`;
+            }).join("") || "No attendance yet";
+            const passed = Object.values(marks).filter(m => (m.total100 || m.score || 0) >= 50).map(m => esc(m.subject)).join(", ") || "—";
+            const failed = Object.values(marks).filter(m => (m.total100 || m.score || 0) < 50).map(m => esc(m.subject)).join(", ") || "—";
+            const rem = (u.feesTotal||0) - (u.feesPaid||0);
+            box.innerHTML = `<div class="card">
+              <div class="card-title">${esc(u.name)} · counselling view</div>
+              <p>GPA: <strong>${u.gpa ? Number(u.gpa).toFixed(2) : "—"}</strong> · Term backs: ${u.termBacks||0}</p>
+              <p>Passed: ${passed}</p>
+              <p>Failed: ${failed}</p>
+              <p>Fees paid ${Number(u.feesPaid||0).toLocaleString()} · remaining ${Number(rem).toLocaleString()}</p>
+              <div style="margin-top:0.5rem;">${attRows}</div>
+            </div>`;
+            return;
+          }
+          const p = await dbGet(`directory/${uid}`) || {};
+          const papers = Array.isArray(p.papers) ? p.papers : Object.values(p.papers || {});
+          const books = Array.isArray(p.books) ? p.books : Object.values(p.books || {});
+          box.innerHTML = `<div class="card">
+            <div style="display:flex;gap:0.8rem;align-items:center;">
+              <img class="avatar" src="${esc(p.photoURL||LOGO)}" onerror="this.src='${LOGO}'" />
+              <div>
+                <div style="font-weight:700;font-size:1.1rem;">${esc(p.name)}</div>
+                <div style="color:var(--text-muted);">${esc(ROLES[p.role]||p.role)}</div>
+              </div>
+            </div>
+            ${p.status ? `<div class="alert alert-info" style="margin-top:0.75rem;">${esc(p.status)}</div>` : ""}
+            ${p.bio ? `<p style="margin-top:0.6rem;">${esc(p.bio)}</p>` : ""}
+            ${papers.length ? `<h4 style="margin-top:0.8rem;">Papers</h4>` + papers.map(pp => `<p><strong>${esc(pp.title)}</strong> ${pp.link ? `<a href="${esc(pp.link)}" target="_blank" rel="noopener">Link</a>` : ""}<br/><span style="color:var(--text-muted);font-size:0.85rem;">${esc(pp.abstract||"")}</span></p>`).join("") : ""}
+            ${books.length ? `<h4 style="margin-top:0.8rem;">Books</h4><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:0.75rem;">` + books.map(b => `<div class="card" style="padding:0.5rem;margin:0;">${b.coverURL ? `<img src="${esc(b.coverURL)}" alt="" style="width:100%;height:150px;object-fit:cover;border-radius:8px;" />` : ""}<div style="font-weight:600;font-size:0.85rem;margin-top:0.3rem;">${esc(b.title)}</div>${b.buyURL ? `<a href="${esc(b.buyURL)}" target="_blank" rel="noopener">Purchase</a>` : ""}</div>`).join("") + `</div>` : ""}
+          </div>`;
+        };
+      });
+    }
+
+    async function renderHOD() {
+      clearListeners();
+      if (!profile.department) {
+        renderShell(`<div class="card"><div class="alert alert-warning">HOD needs a department on the teacher profile.</div></div>`);
+        return;
+      }
+      const depts = await dbGet("departments") || {};
+      const tt = await dbGet(`timetable/${profile.department}`) || {};
+      const today = dayName();
+      const log = await dbGet(`attendanceLog/${todayStr()}`) || {};
+      const slots = Object.entries(tt[today] || {});
+      const now = nowMinutes();
+      const rows = [];
+      for (const [sid, s] of slots) {
+        if (s.teacherId && await isOnApprovedLeave(s.teacherId)) continue;
+        const taken = Object.values(log).some(l => l.slotId === sid || (l.teacherId === s.teacherId && l.subject === s.subject));
+        const ended = now >= timeToMin(s.end);
+        const status = taken ? "Taken" : (ended ? "Missed" : "Upcoming");
+        rows.push(`<tr>
+          <td>${esc(s.teacherName||"")}</td>
+          <td>${esc(s.subject)}</td>
+          <td>${fmtTime(s.start)}–${fmtTime(s.end)}</td>
+          <td><span class="badge ${taken ? "badge-success" : ended ? "badge-danger" : "badge-info"}">${status}</span></td>
+        </tr>`);
+      }
+      renderShell(`
+        <div class="card">
+          <div class="card-title">HOD · ${esc(depts[profile.department]?.name || profile.department)} · ${today}</div>
+          <div class="alert alert-info">Teachers with no class today are not listed. Missed means the class ended without attendance.</div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Teacher</th><th>Subject</th><th>Time</th><th>Attendance</th></tr></thead>
+            <tbody>${rows.join("") || `<tr><td colspan="4" class="empty">No classes scheduled today</td></tr>`}</tbody>
+          </table></div>
+        </div>
+        <p style="font-size:0.85rem;color:var(--text-muted);">Switch back to Teacher in the header for attendance, marks, and your profile.</p>
+      `);
+    }
+
     function routeToRole() {
       activeTab = "dashboard";
       const r = activeRole();
@@ -3300,6 +3635,7 @@
         case "finance": return renderFinance();
         case "exam": return renderExam();
         case "admission": return renderAdmission();
+        case "hod": return renderHOD();
         case "pvc": return renderPVC();
         default:
           renderShell(`<div class="card"><div class="alert alert-danger">Unknown role: ${esc(r)}. Contact admin.</div></div>`);
