@@ -603,10 +603,35 @@
   <div id="toast-container"></div>
 
   <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-app.js";
+    import { getAuth, GoogleAuthProvider, signInWithRedirect } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-auth.js";
+    const auth = getAuth(initializeApp({
+      apiKey: "AIzaSyCHC23BiSkd4dIm8iFIfmTRjZg1RY1dDEU",
+      authDomain: "lms-salu-ghotki.firebaseapp.com",
+      projectId: "lms-salu-ghotki",
+      storageBucket: "lms-salu-ghotki.firebasestorage.app",
+      messagingSenderId: "697640974761",
+      appId: "1:697640974761:web:1e0b7b9b3615ea7b956cb8",
+      databaseURL: "https://lms-salu-ghotki-default-rtdb.asia-southeast1.firebasedatabase.app"
+    }));
+    const provider = new GoogleAuthProvider();
+    const btn = document.getElementById("btn-google");
+    if (btn) btn.onclick = () => {
+      btn.disabled = true;
+      btn.textContent = "Opening Google…";
+      signInWithRedirect(auth, provider).catch((e) => {
+        btn.disabled = false;
+        btn.textContent = "Sign in with Google";
+        alert("Sign-in failed: " + (e && e.message ? e.message : e));
+      });
+    };
+  </script>
+
+  <script type="module">
     // ─── Firebase ───────────────────────────────────────────────
     import { initializeApp } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-app.js";
     import {
-      getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged
+      getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged
     } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-auth.js";
     import {
       getDatabase, ref, set, get, update, remove, push, onValue, off,
@@ -627,14 +652,7 @@
     const auth = getAuth(app);
     const db = getDatabase(app);
     const provider = new GoogleAuthProvider();
-    const googleBtn = document.getElementById("btn-google");
-    if (googleBtn) googleBtn.onclick = async () => {
-      try { await signInWithPopup(auth, provider); }
-      catch (e) {
-        if (e && e.code === "auth/popup-closed-by-user") return;
-        alert("Sign-in failed: " + (e && e.message ? e.message : e));
-      }
-    };
+    getRedirectResult(auth).catch(() => {});
 
     // ─── Constants ──────────────────────────────────────────────
     const ADMIN_EMAIL = "departmentofenglish064@gmail.com";
@@ -1155,16 +1173,15 @@
           </div>
         </div>
       `;
-      document.getElementById("btn-google").onclick = async () => {
-        window.__signinReady = true;
-        try {
-          await signInWithPopup(auth, provider);
-        } catch (e) {
-          if (e && e.code === "auth/popup-closed-by-user") return;
-          toast("Sign-in failed: " + e.message, "error");
-        }
+      document.getElementById("btn-google").onclick = () => {
+        const btn = document.getElementById("btn-google");
+        btn.disabled = true;
+        btn.textContent = "Opening Google…";
+        signInWithRedirect(auth, provider).catch((e) => {
+          btn.disabled = false;
+          alert("Sign-in failed: " + (e && e.message ? e.message : e));
+        });
       };
-      window.__signinReady = true;
     }
 
     // ─── Render Shell ───────────────────────────────────────────
