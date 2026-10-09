@@ -1994,6 +1994,11 @@
               <textarea name="status" rows="3" maxlength="1400" placeholder="What you are working on…">${esc(profile.status||'')}</textarea>
             </div>
             <div class="form-group"><label>Bio</label><textarea name="bio" rows="3">${esc(profile.bio||'')}</textarea></div>
+            <div class="form-group"><label>Rank / title</label>
+              <select name="rank">
+                ${["Lecturer","Assistant Professor","Associate Professor","Professor"].map(r => `<option ${ (profile.rank||"Lecturer")===r ? "selected" : "" }>${r}</option>`).join("")}
+              </select>
+            </div>
             <div class="form-group"><label>Education</label><textarea name="education" rows="2" placeholder="Degrees, universities">${esc(profile.education||'')}</textarea></div>
             <div class="form-group"><label>Research note</label><textarea name="researchHistory" rows="2">${esc(profile.researchHistory||'')}</textarea></div>
             <div class="form-group"><label>Website</label><input name="website" value="${esc(profile.website||'')}" placeholder="https://..." /></div>
@@ -2152,6 +2157,7 @@
           website: p.website || "",
           researchHistory: p.researchHistory || "",
           education: p.education || "",
+          rank: p.rank || "",
           papers: p.papers || [],
           books: p.books || [],
           social: p.social || {}
@@ -3697,10 +3703,11 @@
       }
       renderShell(`
         <div class="card"><div class="card-title">People</div>
-          <p style="color:var(--text-muted);font-size:0.9rem;">Professors first, then staff. Tap a photo to open the profile.</p>
+          <p style="color:var(--text-muted);font-size:0.9rem;">Educators first, then staff. Tap a photo to open the profile.</p>
         </div>
-        <h3 style="margin:0.5rem 0;">Professors</h3>
-        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:0.75rem;">${teachers.map(p => tile(p, "Professor")).join("") || `<div class="empty">No professors yet</div>`}</div>
+        <h3 style="margin:0.5rem 0;">Teachers</h3>
+        <h3 style="margin:0.5rem 0;">Educators</h3>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:0.75rem;">${teachers.map(p => tile(p, "Educator")).join("") || `<div class="empty">No teachers yet</div>`}</div>
         <h3 style="margin:1rem 0 0.5rem;">Staff</h3>
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:0.75rem;">${staff.map(p => tile(p, "Staff")).join("") || `<div class="empty">No other staff profiles yet</div>`}</div>
         ${studentTiles}
@@ -3743,7 +3750,7 @@
             <img src="${esc(p.photoURL || LOGO)}" alt="" style="width:96px;height:96px;border-radius:50%;object-fit:cover;border:3px solid #fff;" onerror="this.src='${LOGO}'" />
             <div>
               <div style="font-size:1.4rem;font-weight:700;">${esc(p.name || "Profile")}</div>
-              <span class="badge badge-info">${isTeacher ? "Professor" : (p.role === "student" ? "Student" : "Staff")}</span>
+              <span class="badge badge-info">${isTeacher ? "Educator" : (p.role === "student" ? "Student" : "Staff")}</span>
               <div style="margin-top:0.35rem;color:var(--text-muted);">${Object.keys(follows).length} followers${isTeacher ? ` · ${Object.keys(votes).length} hearts` : ""}</div>
             </div>
           </div>
