@@ -985,7 +985,13 @@
             <p style="margin-top:1.5rem;font-size:0.8rem;color:var(--text-muted);">
               Only authorised university accounts can access this system.
             </p>
-            <p style="margin-top:1.25rem;font-size:0.75rem;color:var(--text-muted);">
+            <p style="margin-top:1rem;">
+              <a href="https://www.authormasoncarter.com/p/salu-ghotki-lms-project-page.html" target="_blank" rel="noopener"
+                style="display:inline-block;font-size:0.72rem;font-weight:600;padding:0.3rem 0.7rem;border-radius:8px;border:1px solid var(--border);color:var(--text-muted);background:var(--surface2);text-decoration:none;">
+                Report Bugs
+              </a>
+            </p>
+            <p style="margin-top:0.85rem;font-size:0.75rem;color:var(--text-muted);">
               <a href="https://www.authormasoncarter.com" target="_blank" rel="noopener" style="font-style:italic;color:var(--text-muted);">Developer: Mason Carter</a>
             </p>
           </div>
@@ -1185,7 +1191,7 @@
       return `
         <div class="card">
           <div class="card-title">Invite Staff (not students)</div>
-          <div class="alert alert-info">Students are added by Exam Wing / Admission Wing only.</div>
+          <div class="alert alert-info">Students are added by Exam Wing / Admission Wing only. <strong>Department is required only for Teacher and Clerk.</strong></div>
           <form id="form-invite">
             <div class="form-row">
               <div class="form-group"><label>Full Name</label><input name="name" required /></div>
@@ -1194,7 +1200,7 @@
             <div class="form-row">
               <div class="form-group">
                 <label>Role</label>
-                <select name="role" required>
+                <select name="role" required id="invite-role">
                   <option value="teacher">Teacher</option>
                   <option value="clerk">Clerk</option>
                   <option value="finance">Finance Wing</option>
@@ -1203,7 +1209,7 @@
                   <option value="pvc">Pro Vice Chancellor</option>
                 </select>
               </div>
-              <div class="form-group"><label>Department</label><select name="department"><option value="">—</option>${deptOpts}</select></div>
+              <div class="form-group"><label>Department <span style="font-weight:400;color:var(--text-muted);">(required for Teacher &amp; Clerk)</span></label><select name="department" id="invite-dept"><option value="">—</option>${deptOpts}</select></div>
             </div>
             <input type="hidden" name="batch" value="" />
             <input type="hidden" name="feesTotal" value="0" />
@@ -1324,13 +1330,19 @@
       if (formInvite) formInvite.onsubmit = async (e) => {
         e.preventDefault();
         const fd = new FormData(formInvite);
+        const role = fd.get("role");
+        const department = fd.get("department") || "";
+        if ((role === "teacher" || role === "clerk") && !department) {
+          toast("Department is required for Teacher and Clerk", "error");
+          return;
+        }
         const email = fd.get("email").toLowerCase().trim();
         const emailKey = email.replace(/\./g, ",");
         try {
           await dbSet(`pending/${emailKey}`, {
             name: fd.get("name").trim(),
-            role: fd.get("role"),
-            department: fd.get("department") || "",
+            role,
+            department,
             batch: fd.get("batch") || "",
             feesTotal: Number(fd.get("feesTotal")||0),
             invitedAt: Date.now()
@@ -1727,12 +1739,26 @@
 
     async function studentAnnHtml() {
       const anns = await dbGet("announcements") || {};
+      const subAtt = await dbGet(`subjectAtt/${profile.uid}`) || {};
+      const mySubjects = new Set(Object.values(subAtt).map(s => (s.subject || "").toLowerCase()).filter(Boolean));
+      // Also subjects from marks
+      const marks = await dbGet(`marks/${profile.uid}`) || {};
+      Object.values(marks).forEach(m => { if (m.subject) mySubjects.add(m.subject.toLowerCase()); });
+
       const items = Object.entries(anns)
-        .filter(([_,a]) => !a.department || a.department === profile.department)
+        .filter(([_,a]) => {
+          if (a.department && a.department !== profile.department) return false;
+          if (a.subject) {
+            // Subject-specific: only students linked to that subject (or same dept if no subjectAtt yet — show if dept matches and subject set)
+            if (mySubjects.size === 0) return a.department === profile.department;
+            return mySubjects.has(String(a.subject).toLowerCase());
+          }
+          return !a.department || a.department === profile.department;
+        })
         .sort((a,b) => (b[1].ts||0)-(a[1].ts||0))
         .map(([_,a]) => `
           <div class="ann-item">
-            <div class="ann-meta">${esc(a.byName||"")} · ${fmtDate(a.ts)}</div>
+            <div class="ann-meta">${esc(a.byName||"")} · ${fmtDate(a.ts)}${a.subject ? ` · <span class="badge badge-info">${esc(a.subject)}</span>` : ""}</div>
             <div class="ann-body">${esc(a.text)}</div>
           </div>
         `).join("") || `<div class="empty">No announcements</div>`;
@@ -1809,7 +1835,8 @@
       clearListeners();
       const tabs = [
         { id: "dashboard", label: "Dashboard" },
-        { id: "attendance", label: "Attendance · Marks" },
+        { id: "attendance", label: "Attendance" },
+        { id: "marks", label: "Marks / Exams" },
         { id: "profile", label: "Profile · Leave · Bills" }
       ];
       if (!tabs.find(t => t.id === activeTab)) activeTab = "dashboard";
@@ -1818,7 +1845,9 @@
       if (activeTab === "dashboard") {
         body = await teacherDashHtml();
       } else if (activeTab === "attendance") {
-        body = (await teacherAttHtml()) + (await teacherMarksHtml()) + (await teacherAnnHtml());
+        body = await teacherAttHtml();
+      } else if (activeTab === "marks") {
+        body = (await teacherMarksHtml()) + (await teacherAnnHtml());
       } else if (activeTab === "profile") {
         body = profileEditHtml() + leaveFormHtml("teacher") + `
           <div class="card">
@@ -1839,6 +1868,9 @@
       bindTabs(renderTeacher);
       bindProfileForm();
       bindTeacherHandlers();
+      document.querySelectorAll("[data-goto-tab]").forEach(b => {
+        b.onclick = () => { activeTab = b.dataset.gotoTab; renderTeacher(); };
+      });
       if (activeTab === "profile") {
         bindLeaveForm(renderTeacher);
         const formBill = document.getElementById("form-bill");
@@ -1907,16 +1939,34 @@
         ${prepAlert}
         <div class="grid-2">
           <div class="card">
-            <div class="card-title">Current Class</div>
+            <div class="card-title">${ICONS.check} Attendance</div>
+            <p style="font-size:0.875rem;color:var(--text-muted);margin-bottom:0.75rem;">
+              ${slots.length
+                ? `${slots.length} class(es) on timetable today.`
+                : "No classes on your timetable for today. Clerk must assign you in the department timetable first."}
+            </p>
             ${current ? `
               <div class="tt-slot current">
                 <div class="tt-time">${fmtTime(current.start)} – ${fmtTime(current.end)}</div>
                 <div class="tt-subject">${esc(current.subject)}</div>
-                <div class="tt-meta">${esc(current.room||"")} · Batch: ${esc(current.batchName||current.batch||"")}</div>
+                <div class="tt-meta">${esc(current.room||"")} · ${esc(current.batchName||current.batch||"")}</div>
               </div>
               <button class="btn btn-success" style="margin-top:0.75rem;" data-take-att="${esc(current.sid)}" data-batch="${esc(current.batch||'')}" data-subject="${esc(current.subject)}">Take Attendance Now</button>
-            ` : `<div class="empty">No class in progress</div>`}
+            ` : `<div class="empty" style="padding:0.75rem;">No class in progress right now</div>`}
+            <button class="btn btn-primary btn-sm" style="margin-top:0.75rem;" data-goto-tab="attendance">Open Attendance</button>
           </div>
+          <div class="card">
+            <div class="card-title">${ICONS.book} Marks / Exams</div>
+            <p style="font-size:0.875rem;color:var(--text-muted);margin-bottom:0.75rem;">
+              Upload midterm (30), final (50), presentation (10). Attendance (10) is auto-calculated.
+            </p>
+            <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.75rem;">
+              Needs: batches + students in your department (Admission/Exam Wing), then pick batch &amp; subject.
+            </p>
+            <button class="btn btn-primary btn-sm" data-goto-tab="marks">Open Marks / Exams</button>
+          </div>
+        </div>
+        <div class="grid-2">
           <div class="card">
             <div class="card-title">Upcoming Today</div>
             ${upcoming ? `
@@ -1927,25 +1977,24 @@
               </div>
             ` : `<div class="empty">No more classes today</div>`}
           </div>
-        </div>
-        <div class="card">
-          <div class="card-title">Today's Schedule</div>
-          <div class="tt-grid">
-            ${slots.map(([sid,s]) => {
-              const start = timeToMin(s.start), end = timeToMin(s.end);
-              let cls = "";
-              if (now >= start && now < end) cls = "current";
-              else if (now < start) cls = "upcoming";
-              return `<div class="tt-slot ${cls}">
-                <div class="tt-time">${fmtTime(s.start)} – ${fmtTime(s.end)}</div>
-                <div class="tt-subject">${esc(s.subject)}</div>
-                <div class="tt-meta">${esc(s.room||"")} · ${esc(s.batchName||"")}</div>
-              </div>`;
-            }).join("") || `<div class="empty">No classes scheduled today</div>`}
+          <div class="card">
+            <div class="card-title">Today's Schedule</div>
+            <div class="tt-grid">
+              ${slots.map(([sid,s]) => {
+                const start = timeToMin(s.start), end = timeToMin(s.end);
+                let cls = "";
+                if (now >= start && now < end) cls = "current";
+                else if (now < start) cls = "upcoming";
+                return `<div class="tt-slot ${cls}">
+                  <div class="tt-time">${fmtTime(s.start)} – ${fmtTime(s.end)}</div>
+                  <div class="tt-subject">${esc(s.subject)}</div>
+                  <div class="tt-meta">${esc(s.room||"")} · ${esc(s.batchName||"")}</div>
+                </div>`;
+              }).join("") || `<div class="empty">No classes scheduled today — ask Clerk to add timetable slots with your name</div>`}
+            </div>
           </div>
         </div>
         ${await (async () => {
-          // Teachers who missed >3 classes (not on leave)
           const missed = await dbGet("missedClasses") || {};
           const alerts = Object.entries(missed)
             .filter(([_,m]) => (m.count||0) > 3 && m.teacherId !== profile.uid)
@@ -1963,27 +2012,56 @@
       const today = dayName();
       const slots = Object.entries(tt[today] || {}).filter(([_,s]) => s.teacherId === profile.uid);
 
-      // Check if coming from "Take Attendance Now"
+      // From dashboard "Take Attendance Now" — only if still inside class window
       const params = window.__attParams;
       if (params) {
         window.__attParams = null;
-        return await buildAttendanceForm(params.sid, params.batch, params.subject);
+        const slot = slots.find(([sid]) => sid === params.sid);
+        if (slot) {
+          const now = nowMinutes();
+          const start = timeToMin(slot[1].start), end = timeToMin(slot[1].end);
+          if (now >= start && now < end) {
+            return await buildAttendanceForm(params.sid, params.batch, params.subject);
+          }
+          toast("Attendance only during class time (" + fmtTime(slot[1].start) + " – " + fmtTime(slot[1].end) + ")", "error");
+        }
       }
 
-      if (!slots.length) return `<div class="card"><div class="empty">No classes today. Attendance can only be taken for today's scheduled classes.</div></div>`;
+      if (!slots.length) return `<div class="card">
+        <div class="card-title">${ICONS.check} Take Attendance</div>
+        <div class="alert alert-info">No classes on your timetable for <strong>today (${today})</strong>.</div>
+        <p style="font-size:0.9rem;color:var(--text-muted);">To take attendance you need:</p>
+        <ol style="font-size:0.9rem;color:var(--text-muted);margin:0.5rem 0 0 1.25rem;line-height:1.7;">
+          <li>A <strong>department</strong> on your profile (Admin assigns when inviting)</li>
+          <li><strong>Clerk</strong> adds a timetable slot with you as teacher (use @ your name)</li>
+          <li>Slot must be for <strong>today’s weekday</strong></li>
+          <li>Slot should include a <strong>batch</strong> that has students (Admission/Exam Wing)</li>
+        </ol>
+      </div>`;
 
+      const now = nowMinutes();
       return `
         <div class="card">
           <div class="card-title">Select Class for Attendance (${today})</div>
+          <div class="alert alert-info">Attendance can only be taken <strong>during the class time</strong> on the timetable (start → end).</div>
           <div class="tt-grid">
-            ${slots.map(([sid, s]) => `
-              <div class="tt-slot">
+            ${slots.map(([sid, s]) => {
+              const start = timeToMin(s.start), end = timeToMin(s.end);
+              const inWindow = now >= start && now < end;
+              const past = now >= end;
+              let status = inWindow ? "current" : (now < start ? "upcoming" : "");
+              return `
+              <div class="tt-slot ${status}">
                 <div class="tt-time">${fmtTime(s.start)} – ${fmtTime(s.end)}</div>
                 <div class="tt-subject">${esc(s.subject)}</div>
                 <div class="tt-meta">${esc(s.batchName||s.batch||"")}</div>
-                <button class="btn btn-success btn-sm" style="margin-top:0.5rem;" data-take-att="${esc(sid)}" data-batch="${esc(s.batch||'')}" data-subject="${esc(s.subject)}">Take Attendance</button>
-              </div>
-            `).join("")}
+                ${inWindow
+                  ? `<button class="btn btn-success btn-sm" style="margin-top:0.5rem;" data-take-att="${esc(sid)}" data-batch="${esc(s.batch||'')}" data-subject="${esc(s.subject)}">Take Attendance</button>`
+                  : past
+                    ? `<span class="badge badge-warning" style="margin-top:0.5rem;display:inline-block;">Class ended — window closed</span>`
+                    : `<span class="badge badge-info" style="margin-top:0.5rem;display:inline-block;">Not started yet</span>`}
+              </div>`;
+            }).join("")}
           </div>
         </div>
       `;
@@ -2089,20 +2167,22 @@
         .sort((a,b) => (b[1].ts||0)-(a[1].ts||0))
         .map(([id,a]) => `
           <div class="ann-item">
-            <div class="ann-meta">${esc(a.byName||"")} · ${fmtDate(a.ts)}</div>
+            <div class="ann-meta">${esc(a.byName||"")} · ${fmtDate(a.ts)}${a.subject ? ` · <span class="badge badge-info">${esc(a.subject)}</span>` : ""}</div>
             <div class="ann-body">${esc(a.text)}</div>
             ${a.by === profile.uid ? `<button class="btn btn-danger btn-sm" data-del-ann="${esc(id)}">Delete</button>` : ""}
           </div>
         `).join("") || `<div class="empty">No announcements</div>`;
       return `
         <div class="card">
-          <div class="card-title">Post Announcement (your department only)</div>
+          <div class="card-title">Post Announcement (by subject)</div>
+          <div class="alert alert-info">Students linked to that subject (same department) will see it.</div>
           <form id="form-tann">
+            <div class="form-group"><label>Subject</label><input name="subject" required placeholder="e.g. Literary Theory" /></div>
             <div class="form-group"><label>Message</label><textarea name="text" rows="3" required></textarea></div>
-            <button type="submit" class="btn btn-primary">Post</button>
+            <button type="submit" class="btn btn-primary">Post to subject</button>
           </form>
         </div>
-        <div class="card"><div class="card-title">Department Announcements</div>${items}</div>
+        <div class="card"><div class="card-title">Your / Department Announcements</div>${items}</div>
       `;
     }
 
@@ -2180,6 +2260,7 @@
           teacherName: profile.name,
           subject,
           department: profile.department,
+          slotId: submitAtt.dataset.slot || "",
           ts: Date.now()
         });
         toast("Attendance submitted. Locks in 15 minutes.", "success");
@@ -2284,12 +2365,13 @@
         const id = pushId("announcements");
         await dbSet(`announcements/${id}`, {
           text: fd.get("text").trim(),
+          subject: (fd.get("subject") || "").trim(),
           department: profile.department,
           by: profile.uid,
           byName: profile.name,
           ts: Date.now()
         });
-        toast("Posted", "success");
+        toast("Posted for subject", "success");
         renderTeacher();
       };
 
@@ -2967,26 +3049,60 @@
     async function renderPVC() {
       clearListeners();
       const log = await dbGet(`attendanceLog/${todayStr()}`) || {};
+      const depts = await dbGet("departments") || {};
+      const today = dayName();
+      const now = nowMinutes();
+      const takenKeys = new Set();
       const filteredLog = [];
-      for (const l of Object.values(log)) {
+      for (const [k, l] of Object.entries(log)) {
         if (l.teacherId && await isOnApprovedLeave(l.teacherId)) continue;
         filteredLog.push(l);
+        if (l.teacherId && l.subject) takenKeys.add(`${l.teacherId}|${l.subject}|${l.department||""}`);
+        if (l.slotId) takenKeys.add(`slot:${l.department}_${l.slotId}`);
       }
+      // Also match by attendance keys stored as dept_slot_date
+      for (const k of Object.keys(log)) {
+        takenKeys.add(`key:${k}`);
+      }
+
       const rows = filteredLog.sort((a,b) => (b.ts||0)-(a.ts||0)).map(l => `
         <tr>
           <td>${esc(l.teacherName)}</td>
           <td>${esc(l.subject)}</td>
           <td>${esc(l.department)}</td>
-          <td>${new Date(l.ts).toLocaleTimeString()}</td>
+          <td><span class="badge badge-success">Taken</span> ${new Date(l.ts).toLocaleTimeString()}</td>
         </tr>
-      `).join("") || `<tr><td colspan="4" class="empty">No classes marked today yet</td></tr>`;
+      `).join("");
 
-      const depts = await dbGet("departments") || {};
+      // Missed: scheduled class whose end time has passed, teacher not on leave, no attendance submitted
+      const missedRows = [];
       let scheduled = 0;
       for (const deptId of Object.keys(depts)) {
         const tt = await dbGet(`timetable/${deptId}`) || {};
-        scheduled += Object.keys(tt[dayName()] || {}).length;
+        const daySlots = tt[today] || {};
+        for (const [sid, s] of Object.entries(daySlots)) {
+          scheduled++;
+          const end = timeToMin(s.end);
+          if (now < end) continue; // class not finished — don't report yet
+          if (s.teacherId && await isOnApprovedLeave(s.teacherId)) continue;
+          const attKey = `${deptId}_${sid}_${todayStr()}`;
+          const logHit = Object.values(log).some(l =>
+            (l.slotId === sid && l.department === deptId) ||
+            (l.teacherId === s.teacherId && l.subject === s.subject && (l.department === deptId || !l.department))
+          );
+          const attExists = await dbGet(`attendance/${attKey}`);
+          if (logHit || attExists) continue;
+          missedRows.push(`
+            <tr>
+              <td>${esc(s.teacherName||s.teacherId)}</td>
+              <td>${esc(s.subject)}</td>
+              <td>${esc(depts[deptId]?.name || deptId)}</td>
+              <td><span class="badge badge-danger">Not taken</span> ${fmtTime(s.start)}–${fmtTime(s.end)}</td>
+            </tr>`);
+        }
       }
+
+      const allRows = (rows + missedRows.join("")) || `<tr><td colspan="4" class="empty">No scheduled classes to report today (teachers with no class are not listed)</td></tr>`;
 
       const bills = await dbGet("bills") || {};
       const pendingBills = Object.entries(bills).filter(([_,b]) => b.status === "pending");
@@ -3015,15 +3131,15 @@
       renderShell(`
         <div class="grid-3">
           <div class="stat-card ok"><div class="stat-value">${filteredLog.length}</div><div class="stat-label">Classes Marked Today</div></div>
-          <div class="stat-card"><div class="stat-value">${scheduled}</div><div class="stat-label">Scheduled slots</div></div>
+          <div class="stat-card ${missedRows.length?'danger':''}"><div class="stat-value">${missedRows.length}</div><div class="stat-label">Missed (not taken)</div></div>
           <div class="stat-card ${pendingLeaves.length?'warn':''}"><div class="stat-value">${pendingLeaves.length}</div><div class="stat-label">Leave requests</div></div>
         </div>
         <div class="card">
-          <div class="card-title">${ICONS.check} Attendance Today — ${todayStr()}</div>
-          <div class="alert alert-info">Teachers on approved leave are excluded from this list.</div>
+          <div class="card-title">${ICONS.check} Class Attendance Today — ${todayStr()}</div>
+          <div class="alert alert-info">Only teachers with a scheduled class today appear. Missed = class ended without attendance. Leave excluded. Teachers with no class today are not listed.</div>
           <div class="table-wrap"><table>
-            <thead><tr><th>Teacher</th><th>Subject</th><th>Department</th><th>Time</th></tr></thead>
-            <tbody>${rows}</tbody>
+            <thead><tr><th>Teacher</th><th>Subject</th><th>Department</th><th>Status</th></tr></thead>
+            <tbody>${allRows}</tbody>
           </table></div>
         </div>
         <div class="widget-grid">
