@@ -1182,7 +1182,11 @@
                 </div>
               </div>
               <div class="form-group"><label>Title</label><input name="title" required /></div>
-              <div class="form-group"><label>Description</label><input name="description" /></div>
+              <div class="form-group"><label>Description</label><textarea name="description" rows="2"></textarea></div>
+              <div class="form-row">
+                <div class="form-group"><label>Image URL (events)</label><input name="imageURL" placeholder="https://..." /></div>
+                <div class="form-group"><label>Registration form URL (optional)</label><input name="formURL" placeholder="https://forms.gle/..." /></div>
+              </div>
               <button type="submit" class="btn btn-primary">Add to Calendar</button>
             </form>
             <div class="table-wrap" style="margin-top:1rem;"><table>
@@ -1212,7 +1216,10 @@
           const id = pushId("calendar");
           await dbSet(`calendar/${id}`, {
             date: fd.get("date"), title: fd.get("title").trim(),
-            type: fd.get("type"), description: (fd.get("description")||"").trim(), ts: Date.now()
+            type: fd.get("type"), description: (fd.get("description")||"").trim(),
+            imageURL: (fd.get("imageURL")||"").trim(),
+            formURL: (fd.get("formURL")||"").trim(),
+            ts: Date.now()
           });
           toast("Calendar entry added", "success");
           renderAdmin();
@@ -3521,71 +3528,150 @@
 
     // ─── Router ─────────────────────────────────────────────────
     async function renderLanding() {
-      const dir = await dbGet("directory") || {};
-      const votes = await dbGet("votes") || {};
       const cal = await dbGet("calendar") || {};
       const anns = await dbGet("announcements") || {};
-      const ranked = Object.entries(dir)
-        .filter(([_, p]) => (p.roles && p.roles.teacher) || p.role === "teacher")
-        .map(([uid, p]) => ({ uid, ...p, votes: Object.keys(votes[uid] || {}).length }))
-        .sort((a, b) => b.votes - a.votes)
-        .slice(0, 10);
-      const events = Object.values(cal).filter(c => c.date >= todayStr()).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 6);
-      const news = Object.values(anns).sort((a, b) => (b.ts || 0) - (a.ts || 0)).slice(0, 5);
-      let boards = "";
-      if (!hasRole("student") || hasRole("teacher")) {
+      const year = String(new Date().getFullYear());
+      const upcoming = Object.entries(cal)
+        .filter(([_, c]) => (c.date || "") >= todayStr() && (c.date || "").startsWith(year))
+        .sort((a, b) => a[1].date.localeCompare(b[1].date));
+      const events = upcoming.filter(([_, c]) => c.type === "event");
+      const holidays = upcoming.filter(([_, c]) => c.type !== "event");
+      const news = Object.values(anns).sort((a, b) => (b.ts || 0) - (a.ts || 0)).slice(0, 6);
+      const depts = await dbGet("departments") || {};
+      let students = [];
+      if (!hasRole("student") || hasRole("teacher") || hasRole("admin") || hasRole("exam")) {
         const users = await dbGet("users") || {};
-        const depts = await dbGet("departments") || {};
-        const byDept = {};
-        Object.entries(users).forEach(([uid, u]) => {
-          if (u.role !== "student" && !getRolesList(u).includes("student")) return;
-          const d = u.department || "none";
-          (byDept[d] = byDept[d] || []).push({ uid, ...u });
-          dbSet(`publicBoard/${d}/${uid}`, { name: u.name || "", gpa: Number(u.gpa || 0), photoURL: u.photoURL || "", department: d }).catch(() => {});
-        });
-        boards = Object.entries(byDept).map(([d, list]) => {
-          const top = list.sort((a, b) => Number(b.gpa || 0) - Number(a.gpa || 0)).slice(0, 10);
-          return `<div class="card"><div class="card-title">Top students · ${esc(depts[d]?.name || d)}</div>
-            ${top.map((s, i) => `<div class="att-row"><span>${i + 1}. ${esc(s.name)}</span><strong>${Number(s.gpa || 0).toFixed(2)}</strong></div>`).join("") || `<div class="empty">No GPA yet</div>`}
-          </div>`;
-        }).join("");
+        students = Object.entries(users)
+          .filter(([_, u]) => u.role === "student" || getRolesList(u).includes("student"))
+          .map(([uid, u]) => ({
+            uid, name: u.name || "", gpa: Number(u.gpa || 0),
+            rollNo: u.rollNo || u.batch || "—",
+            deptCode: (depts[u.department] && depts[u.department].code) || u.department || "—"
+          }));
+        for (const s of students) {
+          dbSet(`publicBoard/all/${s.uid}`, { name: s.name, gpa: s.gpa, rollNo: s.rollNo, deptCode: s.deptCode }).catch(() => {});
+        }
       } else {
-        const board = await dbGet("publicBoard") || {};
-        const depts = await dbGet("departments") || {};
-        boards = Object.entries(board).map(([d, people]) => {
-          const top = Object.values(people || {}).sort((a, b) => Number(b.gpa || 0) - Number(a.gpa || 0)).slice(0, 10);
-          return `<div class="card"><div class="card-title">Top students · ${esc(depts[d]?.name || d)}</div>
-            ${top.map((s, i) => `<div class="att-row"><span>${i + 1}. ${esc(s.name)}</span><strong>${Number(s.gpa || 0).toFixed(2)}</strong></div>`).join("") || `<div class="empty">No GPA yet</div>`}
-          </div>`;
-        }).join("");
+        const board = await dbGet("publicBoard/all") || {};
+        students = Object.values(board).map(s => ({ ...s, gpa: Number(s.gpa || 0) }));
       }
+      const top = students.filter(s => s.gpa > 0).sort((a, b) => b.gpa - a.gpa).slice(0, 10);
+      const rows = top.map((s, i) => `<tr>
+        <td style="font-weight:700;color:var(--primary);">${i + 1}</td>
+        <td>${esc(s.name)}</td>
+        <td>${esc(s.rollNo || "—")}</td>
+        <td>${esc(s.deptCode || "—")}</td>
+        <td><strong>${Number(s.gpa).toFixed(2)}</strong></td>
+      </tr>`).join("") || `<tr><td colspan="5" class="empty">GPA will appear after marks are uploaded</td></tr>`;
+      let classLeaders = [];
+      if (hasRole("teacher") || hasRole("admin") || hasRole("hod") || hasRole("clerk") || hasRole("pvc")) {
+        const users = await dbGet("users") || {};
+        const deptsAll = await dbGet("departments") || {};
+        const since = new Date();
+        since.setFullYear(since.getFullYear() - 1);
+        const sinceStr = since.toISOString().slice(0, 10);
+        const taken = {};
+        for (let d = new Date(since); d <= new Date(); d.setDate(d.getDate() + 1)) {
+          const ds = d.toISOString().slice(0, 10);
+          const log = await dbGet(`attendanceLog/${ds}`) || {};
+          Object.values(log).forEach(l => {
+            if (l.teacherId) taken[l.teacherId] = (taken[l.teacherId] || 0) + 1;
+          });
+        }
+        const assigned = {};
+        const dayCount = {};
+        for (let d = new Date(since); d <= new Date(); d.setDate(d.getDate() + 1)) {
+          const name = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][d.getDay()];
+          dayCount[name] = (dayCount[name] || 0) + 1;
+        }
+        for (const deptId of Object.keys(deptsAll)) {
+          const tt = await dbGet(`timetable/${deptId}`) || {};
+          for (const day of DAYS) {
+            for (const s of Object.values(tt[day] || {})) {
+              if (!s.teacherId) continue;
+              assigned[s.teacherId] = (assigned[s.teacherId] || 0) + (dayCount[day] || 0);
+            }
+          }
+        }
+        classLeaders = Object.entries(users)
+          .filter(([_, u]) => u.role === "teacher" || getRolesList(u).includes("teacher"))
+          .map(([uid, u]) => {
+            const a = assigned[uid] || 0;
+            const t = Math.min(taken[uid] || 0, a || (taken[uid] || 0));
+            const rate = a ? t / a : 0;
+            return { name: u.name, attended: t, rate };
+          })
+          .filter(t => t.attended > 0)
+          .sort((a, b) => b.rate - a.rate || b.attended - a.attended)
+          .slice(0, 10);
+        for (const t of classLeaders) {
+          dbSet(`publicBoard/classes/${(t.name || "t").replace(/[.#$/[\]]/g, "_")}`, t).catch(() => {});
+        }
+      } else {
+        const saved = await dbGet("publicBoard/classes") || {};
+        classLeaders = Object.values(saved).sort((a, b) => (b.rate || 0) - (a.rate || 0)).slice(0, 10);
+      }
+      const classRows = classLeaders.map((t, i) => `<tr>
+        <td style="font-weight:700;color:var(--primary);">${i + 1}</td>
+        <td>${esc(t.name)}</td>
+        <td>${t.attended || 0}</td>
+      </tr>`).join("") || `<tr><td colspan="3" class="empty">Attendance history will fill this list</td></tr>`;
       renderShell(`
         <div class="card" style="background:linear-gradient(135deg,#eef4ff,#fff);">
           <div class="card-title">SALU Ghotki · Campus home</div>
-          <p style="color:var(--text-muted);">Calendar, announcements, and the teachers students voted for.</p>
+          <p style="color:var(--text-muted);">Announcements, calendar, this year’s events, highest GPAs, and teachers with the most classes attended.</p>
         </div>
         <div class="grid-2">
-          <div class="card"><div class="card-title">${ICONS.calendar} Calendar & events</div>
-            ${events.map(c => `<div class="ann-item"><div class="ann-meta">${esc(c.date)} · ${esc(c.type || "event")}</div><div class="ann-body">${esc(c.title)}</div></div>`).join("") || `<div class="empty">No upcoming events</div>`}
-          </div>
           <div class="card"><div class="card-title">Announcements</div>
             ${news.map(a => `<div class="ann-item"><div class="ann-meta">${esc(a.byName || "")}${a.subject ? " · " + esc(a.subject) : ""}</div><div class="ann-body">${esc(a.text)}</div></div>`).join("") || `<div class="empty">No announcements</div>`}
           </div>
-        </div>
-        <div class="card"><div class="card-title">Top 10 teachers by student votes</div>
-          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:0.75rem;">
-            ${ranked.map((t, i) => `<button class="card" data-open-profile="${esc(t.uid)}" style="margin:0;text-align:center;cursor:pointer;">
-              <div style="font-size:0.75rem;color:var(--primary);font-weight:700;">#${i + 1}</div>
-              <img src="${esc(t.photoURL || LOGO)}" alt="" style="width:72px;height:72px;border-radius:50%;object-fit:cover;margin:0.4rem auto;" onerror="this.src='${LOGO}'" />
-              <div style="font-weight:700;">${esc(t.name)}</div>
-              <div style="font-size:0.8rem;color:var(--text-muted);">${t.votes} votes</div>
-            </button>`).join("") || `<div class="empty">No teacher profiles yet</div>`}
+          <div class="card"><div class="card-title">${ICONS.calendar} Calendar</div>
+            ${holidays.map(([_, c]) => `<div class="ann-item"><div class="ann-meta">${esc(c.date)} · ${esc(c.type || "holiday")}</div><div class="ann-body">${esc(c.title)}</div></div>`).join("") || `<div class="empty">No upcoming calendar dates</div>`}
           </div>
         </div>
-        ${boards}
+        <div class="card"><div class="card-title">Upcoming events this year</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:0.75rem;">
+            ${events.map(([id, c]) => `<button class="card" data-event="${esc(id)}" style="margin:0;text-align:left;cursor:pointer;padding:0.7rem;">
+              ${c.imageURL ? `<img src="${esc(c.imageURL)}" alt="" style="width:100%;height:110px;object-fit:cover;border-radius:8px;" />` : ""}
+              <div style="font-weight:700;margin-top:0.4rem;">${esc(c.title)}</div>
+              <div style="font-size:0.8rem;color:var(--text-muted);">${esc(c.date)}</div>
+            </button>`).join("") || `<div class="empty">No events this year yet</div>`}
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Students with highest GPA</div>
+          <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:0.6rem;">Top 10 across all departments, from calculated GPA.</p>
+          <div class="table-wrap"><table>
+            <thead><tr><th>#</th><th>Name</th><th>Roll no.</th><th>Department</th><th>GPA</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Teachers with most attended classes</div>
+          <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:0.6rem;">From the last 12 months of assigned classes.</p>
+          <div class="table-wrap"><table>
+            <thead><tr><th>#</th><th>Teacher</th><th>Classes attended</th></tr></thead>
+            <tbody>${classRows}</tbody>
+          </table></div>
+        </div>
+        <div id="event-pop"></div>
       `);
-      document.querySelectorAll("[data-open-profile]").forEach(b => {
-        b.onclick = () => openPublicProfile(b.dataset.openProfile, "dir");
+      document.querySelectorAll("[data-event]").forEach(btn => {
+        btn.onclick = () => {
+          const c = (cal[btn.dataset.event]) || {};
+          const box = document.getElementById("event-pop");
+          box.innerHTML = `<div class="card" style="border:1px solid var(--primary-light);">
+            <div style="display:flex;justify-content:space-between;gap:0.5rem;align-items:center;">
+              <div class="card-title" style="margin:0;">${esc(c.title || "")}</div>
+              <button class="btn btn-outline btn-sm" id="close-event">Close</button>
+            </div>
+            <div style="color:var(--text-muted);margin:0.4rem 0;">${esc(c.date || "")}</div>
+            ${c.imageURL ? `<img src="${esc(c.imageURL)}" alt="" style="width:100%;max-height:280px;object-fit:cover;border-radius:12px;" />` : ""}
+            <p style="margin-top:0.7rem;">${esc(c.description || "")}</p>
+            ${c.formURL ? `<a class="btn btn-primary" href="${esc(c.formURL)}" target="_blank" rel="noopener">Register</a>` : ""}
+          </div>`;
+          document.getElementById("close-event").onclick = () => { box.innerHTML = ""; };
+        };
       });
     }
 
@@ -3600,12 +3686,12 @@
         if (roles.includes("teacher") || p.role === "teacher") teachers.push(card);
         else if (!roles.includes("student")) staff.push(card);
       });
-      teachers.sort((a, b) => b.votes - a.votes);
+      teachers.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
       const tile = (p, tag) => `<button data-open-profile="${esc(p.uid)}" data-kind="dir" style="border:1px solid var(--border);background:#fff;border-radius:16px;padding:0.8rem;text-align:center;cursor:pointer;">
         <img src="${esc(p.photoURL || LOGO)}" alt="" style="width:84px;height:84px;border-radius:50%;object-fit:cover;" onerror="this.src='${LOGO}'" />
         <div style="font-weight:700;margin-top:0.4rem;">${esc(p.name)}</div>
         <span class="badge badge-info">${tag}</span>
-        ${tag === "Professor" ? `<div style="font-size:0.75rem;color:var(--text-muted);margin-top:0.25rem;">${p.votes} votes</div>` : ""}
+        
       </button>`;
       let studentTiles = "";
       if (hasRole("teacher") || hasRole("hod") || hasRole("admin") || hasRole("clerk") || hasRole("exam")) {
@@ -3667,12 +3753,12 @@
             <div>
               <div style="font-size:1.4rem;font-weight:700;">${esc(p.name || "Profile")}</div>
               <span class="badge badge-info">${isTeacher ? "Professor" : (p.role === "student" ? "Student" : "Staff")}</span>
-              <div style="margin-top:0.35rem;color:var(--text-muted);">${Object.keys(follows).length} followers${isTeacher ? ` · ${Object.keys(votes).length} votes` : ""}</div>
+              <div style="margin-top:0.35rem;color:var(--text-muted);">${Object.keys(follows).length} followers${isTeacher ? ` · ${Object.keys(votes).length} hearts` : ""}</div>
             </div>
           </div>
           <div style="display:flex;gap:0.5rem;margin-top:0.8rem;flex-wrap:wrap;">
             ${uid !== profile.uid ? `<button class="btn btn-primary btn-sm" id="btn-follow">${following ? "Unfollow" : "Follow"}</button>` : ""}
-            ${uid !== profile.uid && isTeacher && hasRole("student") ? `<button class="btn btn-outline btn-sm" id="btn-vote">${voted ? "Remove vote" : "Upvote"}</button>` : ""}
+            ${uid !== profile.uid && isTeacher && hasRole("student") ? `<button class="btn btn-outline btn-sm" id="btn-vote">${voted ? "Remove heart" : "Heart"}</button>` : ""}
           </div>
           ${p.status ? `<div class="alert alert-info" style="margin-top:0.8rem;">${esc(p.status)}</div>` : ""}
         </div>
