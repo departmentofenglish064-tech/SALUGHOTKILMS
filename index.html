@@ -1,0 +1,3131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f2744" />
+  <meta name="description" content="SALU LMS - Shah Abdul Latif University Learning Management System" />
+  <title>SALU LMS</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="icons/icon-192.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #f7f9fc;
+      --surface: #ffffff;
+      --surface2: #f0f4f8;
+      --surface3: #e8eef5;
+      --primary: #3d5a80;
+      --primary-mid: #4a6fa5;
+      --primary-light: #6b8cbe;
+      --accent: #5b8def;
+      --accent-hover: #4a7de0;
+      --accent-soft: #eef4ff;
+      --success: #3d9a6a;
+      --success-bg: #edf8f2;
+      --warning: #c4892a;
+      --warning-bg: #fef8ec;
+      --danger: #d46565;
+      --danger-bg: #fdf0f0;
+      --text: #2c3e50;
+      --text-muted: #7a8b9a;
+      --border: #e4eaf1;
+      --radius: 16px;
+      --radius-sm: 10px;
+      --shadow: 0 1px 2px rgba(61,90,128,0.04), 0 4px 14px rgba(61,90,128,0.05);
+      --shadow-md: 0 4px 18px rgba(61,90,128,0.08);
+      --shadow-lg: 0 12px 36px rgba(61,90,128,0.1);
+      --font: 'Inter', system-ui, -apple-system, sans-serif;
+      --ease: cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.55;
+      font-size: 15px;
+    }
+    a { color: var(--accent); text-decoration: none; transition: color 0.15s var(--ease); }
+    a:hover { color: var(--accent-hover); }
+
+    button, .btn {
+      font-family: inherit;
+      cursor: pointer;
+      border: none;
+      border-radius: var(--radius-sm);
+      padding: 0.55rem 1.15rem;
+      font-size: 0.875rem;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      transition: transform 0.15s var(--ease), box-shadow 0.15s var(--ease), background 0.15s var(--ease), border-color 0.15s var(--ease);
+      display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
+    }
+    .btn:active:not(:disabled) { transform: scale(0.97); }
+    .btn-primary {
+      background: var(--primary);
+      color: #fff;
+      box-shadow: 0 1px 2px rgba(15,39,68,0.2);
+    }
+    .btn-primary:hover { background: var(--primary-mid); box-shadow: var(--shadow-md); }
+    .btn-accent { background: var(--accent); color: #fff; }
+    .btn-accent:hover { background: var(--accent-hover); }
+    .btn-success { background: var(--success); color: #fff; }
+    .btn-danger { background: var(--danger); color: #fff; }
+    .btn-outline {
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      color: var(--text);
+    }
+    .btn-outline:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+    .btn-sm { padding: 0.3rem 0.7rem; font-size: 0.8rem; border-radius: 8px; }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none !important; }
+
+    input, select, textarea {
+      font-family: inherit;
+      font-size: 0.9rem;
+      padding: 0.6rem 0.85rem;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+      color: var(--text);
+      width: 100%;
+      transition: border-color 0.15s var(--ease), box-shadow 0.15s var(--ease);
+    }
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3.5px rgba(59,130,246,0.15);
+    }
+    label {
+      display: block;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 0.35rem;
+      letter-spacing: 0.01em;
+    }
+    .form-group { margin-bottom: 1rem; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    @media (max-width: 600px) { .form-row { grid-template-columns: 1fr; } }
+
+    /* Layout */
+    #app { min-height: 100vh; display: flex; flex-direction: column; }
+    .header {
+      background: rgba(255,255,255,0.92);
+      color: var(--text);
+      padding: 0.6rem 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--border);
+      box-shadow: 0 1px 8px rgba(61,90,128,0.04);
+    }
+    .header-brand {
+      display: flex; align-items: center; gap: 0.7rem;
+      font-weight: 700; font-size: 1.05rem; letter-spacing: -0.02em;
+      color: var(--primary);
+    }
+    .header-brand img {
+      width: 34px; height: 34px; border-radius: 9px;
+      object-fit: cover; background: #fff;
+      box-shadow: 0 0 0 2px var(--border);
+    }
+    .header-actions { display: flex; align-items: center; gap: 0.65rem; }
+    .user-chip {
+      display: flex; align-items: center; gap: 0.5rem;
+      background: var(--surface2);
+      padding: 0.25rem 0.7rem 0.25rem 0.25rem;
+      border-radius: 999px;
+      font-size: 0.8rem;
+      font-weight: 500;
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+    .user-chip img {
+      width: 28px; height: 28px; border-radius: 50%;
+      object-fit: cover; background: #fff;
+    }
+    .role-badge {
+      font-size: 0.65rem;
+      background: var(--accent-soft);
+      color: var(--accent-hover);
+      padding: 0.15rem 0.5rem;
+      border-radius: 999px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      font-weight: 700;
+    }
+    .header .btn-outline {
+      color: var(--text-muted) !important;
+      border-color: var(--border) !important;
+      background: var(--surface) !important;
+    }
+    .header .btn-outline:hover {
+      border-color: var(--accent) !important;
+      color: var(--accent) !important;
+      background: var(--accent-soft) !important;
+    }
+    .widget-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; margin-bottom: 1rem; }
+    .widget-icon { width: 20px; height: 20px; flex-shrink: 0; opacity: 0.85; vertical-align: -3px; margin-right: 0.35rem; }
+    .cal-item { padding: 0.65rem 0.85rem; border-radius: var(--radius-sm); background: var(--surface2); margin-bottom: 0.4rem; font-size: 0.875rem; }
+    .cal-item .cal-date { font-weight: 700; color: var(--primary); font-size: 0.75rem; }
+    .cal-item.holiday { border-left: 3px solid var(--warning); }
+    .cal-item.event { border-left: 3px solid var(--accent); }
+    .main {
+      flex: 1;
+      padding: 1.5rem 1.25rem 2rem;
+      max-width: 1120px;
+      margin: 0 auto;
+      width: 100%;
+      animation: fadeUp 0.35s var(--ease);
+    }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: none; }
+    }
+    .footer {
+      text-align: center;
+      padding: 1.1rem;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+    }
+
+    /* Login */
+    .login-wrap {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+      background:
+        radial-gradient(ellipse 70% 50% at 10% 20%, rgba(91,141,239,0.12), transparent),
+        radial-gradient(ellipse 60% 40% at 90% 80%, rgba(61,154,106,0.08), transparent),
+        linear-gradient(165deg, #eef2f8 0%, #f7f9fc 50%, #e8eef8 100%);
+    }
+    .login-card {
+      background: #fff;
+      border-radius: 20px;
+      padding: 2.75rem 2.25rem;
+      max-width: 400px;
+      width: 100%;
+      box-shadow: var(--shadow-lg);
+      border: 1px solid var(--border);
+      text-align: center;
+      animation: fadeUp 0.45s var(--ease);
+    }
+    .login-card h1 {
+      font-size: 1.55rem;
+      color: var(--primary);
+      margin-bottom: 0.3rem;
+      letter-spacing: -0.03em;
+      font-weight: 700;
+    }
+    .login-card p { color: var(--text-muted); margin-bottom: 1.75rem; font-size: 0.9rem; }
+    .google-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.75rem;
+      background: #fff;
+      border: 1.5px solid var(--border);
+      padding: 0.8rem 1.5rem;
+      border-radius: var(--radius-sm);
+      font-weight: 600;
+      font-size: 0.95rem;
+      color: var(--text);
+      width: 100%;
+      justify-content: center;
+      transition: box-shadow 0.2s var(--ease), border-color 0.2s var(--ease), transform 0.15s var(--ease);
+    }
+    .google-btn:hover {
+      box-shadow: var(--shadow-md);
+      border-color: #cbd5e1;
+      transform: translateY(-1px);
+    }
+    .google-btn:active { transform: scale(0.98); }
+    .google-btn svg { width: 20px; height: 20px; flex-shrink: 0; }
+
+    /* Cards & grids */
+    .card {
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 1.35rem;
+      box-shadow: var(--shadow);
+      margin-bottom: 1rem;
+      border: 1px solid rgba(226,232,240,0.8);
+      transition: box-shadow 0.2s var(--ease);
+    }
+    .card:hover { box-shadow: var(--shadow-md); }
+    .card-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--primary);
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      letter-spacing: -0.02em;
+    }
+    .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem; }
+    .grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.9rem; }
+    .stat-card {
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 1.25rem 1rem;
+      box-shadow: var(--shadow);
+      text-align: center;
+      border: 1px solid rgba(226,232,240,0.8);
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.2s var(--ease), box-shadow 0.2s var(--ease);
+    }
+    .stat-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+    .stat-card::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0; height: 3px;
+      background: var(--accent);
+      opacity: 0.7;
+    }
+    .stat-card.ok::before { background: var(--success); }
+    .stat-card.warn::before { background: var(--warning); }
+    .stat-card.danger::before { background: var(--danger); }
+    .stat-value {
+      font-size: 1.65rem;
+      font-weight: 700;
+      color: var(--primary);
+      letter-spacing: -0.03em;
+      line-height: 1.2;
+    }
+    .stat-label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 0.3rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+
+    /* Alerts */
+    .alert {
+      padding: 0.85rem 1.1rem;
+      border-radius: var(--radius-sm);
+      margin-bottom: 1rem;
+      font-size: 0.875rem;
+      display: flex;
+      align-items: flex-start;
+      gap: 0.6rem;
+      font-weight: 500;
+      line-height: 1.45;
+    }
+    .alert-warning { background: var(--warning-bg); color: #92400e; border: 1px solid #fde68a; }
+    .alert-danger { background: var(--danger-bg); color: #991b1b; border: 1px solid #fecaca; }
+    .alert-success { background: var(--success-bg); color: #065f46; border: 1px solid #a7f3d0; }
+    .alert-info { background: var(--accent-soft); color: #1e40af; border: 1px solid #bfdbfe; }
+
+    /* Tables */
+    .table-wrap { overflow-x: auto; border-radius: var(--radius-sm); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+    th, td { padding: 0.7rem 0.85rem; text-align: left; border-bottom: 1px solid var(--border); }
+    th {
+      background: var(--surface2);
+      font-weight: 600;
+      color: var(--primary);
+      white-space: nowrap;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #f8fafc; }
+    .badge {
+      display: inline-block;
+      padding: 0.2rem 0.55rem;
+      border-radius: 999px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+    }
+    .badge-success { background: var(--success-bg); color: var(--success); }
+    .badge-warning { background: var(--warning-bg); color: var(--warning); }
+    .badge-danger { background: var(--danger-bg); color: var(--danger); }
+    .badge-info { background: var(--accent-soft); color: var(--accent); }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 0.3rem;
+      flex-wrap: wrap;
+      margin-bottom: 1.35rem;
+      background: var(--surface2);
+      padding: 0.3rem;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+    }
+    .tab {
+      padding: 0.5rem 1rem;
+      border-radius: 9px;
+      background: transparent;
+      color: var(--text-muted);
+      font-weight: 600;
+      font-size: 0.85rem;
+      border: none;
+      cursor: pointer;
+      transition: all 0.18s var(--ease);
+      letter-spacing: -0.01em;
+    }
+    .tab.active {
+      background: var(--surface);
+      color: var(--primary);
+      box-shadow: 0 1px 3px rgba(15,39,68,0.08);
+    }
+    .tab:hover:not(.active) { color: var(--primary); background: rgba(255,255,255,0.5); }
+
+    /* Profile */
+    .avatar {
+      width: 76px; height: 76px;
+      border-radius: 50%;
+      object-fit: cover;
+      background: var(--surface2);
+      border: 3px solid var(--surface);
+      box-shadow: 0 0 0 2px var(--border);
+    }
+    .avatar-sm {
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      object-fit: cover;
+      background: var(--surface2);
+    }
+
+    /* Modal */
+    .modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(15,23,42,0.45);
+      backdrop-filter: blur(4px);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 200; padding: 1rem;
+      animation: fadeUp 0.2s var(--ease);
+    }
+    .modal {
+      background: var(--surface);
+      border-radius: 18px;
+      padding: 1.6rem;
+      max-width: 520px;
+      width: 100%;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: var(--shadow-lg);
+    }
+    .modal h2 { font-size: 1.15rem; color: var(--primary); margin-bottom: 1rem; letter-spacing: -0.02em; }
+    .modal-actions { display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 1.25rem; }
+
+    /* Empty */
+    .empty {
+      text-align: center;
+      padding: 2.75rem 1rem;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+
+    /* Loading */
+    .spinner {
+      width: 32px; height: 32px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.65s linear infinite;
+      margin: 2.5rem auto;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Toast */
+    #toast-container {
+      position: fixed; bottom: 1.5rem; right: 1.5rem;
+      z-index: 300; display: flex; flex-direction: column; gap: 0.5rem;
+      pointer-events: none;
+    }
+    .toast {
+      background: var(--primary);
+      color: #fff;
+      padding: 0.75rem 1.2rem;
+      border-radius: 12px;
+      box-shadow: var(--shadow-lg);
+      font-size: 0.875rem;
+      font-weight: 500;
+      animation: toastIn 0.3s var(--ease);
+      max-width: 340px;
+      pointer-events: auto;
+    }
+    .toast.error { background: var(--danger); }
+    .toast.success { background: var(--success); }
+    @keyframes toastIn {
+      from { transform: translateY(16px) scale(0.96); opacity: 0; }
+      to { transform: none; opacity: 1; }
+    }
+
+    /* Timetable */
+    .tt-grid { display: grid; gap: 0.55rem; }
+    .tt-slot {
+      background: var(--accent-soft);
+      border-left: 3.5px solid var(--accent);
+      padding: 0.75rem 1rem;
+      border-radius: 0 10px 10px 0;
+      font-size: 0.875rem;
+      transition: transform 0.15s var(--ease);
+    }
+    .tt-slot:hover { transform: translateX(2px); }
+    .tt-slot.current {
+      background: var(--success-bg);
+      border-left-color: var(--success);
+      box-shadow: 0 0 0 1px #a7f3d0;
+    }
+    .tt-slot.upcoming {
+      background: var(--warning-bg);
+      border-left-color: var(--warning);
+    }
+    .tt-time { font-weight: 700; color: var(--primary); font-size: 0.78rem; letter-spacing: 0.01em; }
+    .tt-subject { font-weight: 600; margin-top: 0.1rem; }
+    .tt-meta { font-size: 0.78rem; color: var(--text-muted); margin-top: 0.15rem; }
+
+    /* Attendance */
+    .att-list { display: flex; flex-direction: column; gap: 0.4rem; }
+    .att-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0.6rem 0.85rem;
+      background: var(--surface2);
+      border-radius: var(--radius-sm);
+      gap: 0.5rem;
+      transition: background 0.15s var(--ease);
+      font-size: 0.9rem;
+      font-weight: 500;
+    }
+    .att-row.present { background: var(--success-bg); }
+    .att-row.absent { background: var(--danger-bg); }
+    .att-toggle { display: flex; gap: 0.3rem; }
+    .att-toggle button { min-width: 68px; }
+
+    /* Announcements */
+    .ann-item {
+      padding: 1rem 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .ann-item:last-child { border-bottom: none; }
+    .ann-item:first-child { padding-top: 0; }
+    .ann-meta {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-bottom: 0.35rem;
+      font-weight: 500;
+    }
+    .ann-body { font-size: 0.9rem; line-height: 1.5; }
+
+    /* Social */
+    .social-links { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.5rem; }
+    .social-links a {
+      width: 34px; height: 34px;
+      border-radius: 50%;
+      background: var(--surface2);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.85rem; color: var(--primary);
+      transition: background 0.15s var(--ease), color 0.15s var(--ease);
+    }
+    .social-links a:hover { background: var(--accent); color: #fff; }
+
+    /* Header logout button override */
+    .header .btn-outline {
+      color: rgba(255,255,255,0.9);
+      border-color: rgba(255,255,255,0.25);
+      background: transparent;
+      font-size: 0.8rem;
+      padding: 0.4rem 0.9rem;
+    }
+    .header .btn-outline:hover {
+      background: rgba(255,255,255,0.12);
+      border-color: rgba(255,255,255,0.4);
+      color: #fff;
+    }
+
+    @media (max-width: 640px) {
+      .header { padding: 0.55rem 1rem; }
+      .main { padding: 1.1rem 0.85rem 1.75rem; }
+      .user-chip span:not(.role-badge) { display: none; }
+      .stat-value { font-size: 1.4rem; }
+      .tabs { gap: 0.2rem; }
+      .tab { padding: 0.45rem 0.7rem; font-size: 0.8rem; }
+    }
+
+    @media print {
+      .header, .tabs, .btn, .footer, #toast-container { display: none !important; }
+      .main { padding: 0; max-width: none; animation: none; }
+      .card { box-shadow: none; border: 1px solid #ccc; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div id="loading" class="login-wrap">
+      <div class="spinner"></div>
+    </div>
+  </div>
+  <div id="toast-container"></div>
+
+  <script type="module">
+    // ─── Firebase ───────────────────────────────────────────────
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-app.js";
+    import {
+      getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged
+    } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-auth.js";
+    import {
+      getDatabase, ref, set, get, update, remove, push, onValue, off,
+      query, orderByChild, equalTo, limitToLast
+    } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-database.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyCHC23BiSkd4dIm8iFIfmTRjZg1RY1dDEU",
+      authDomain: "lms-salu-ghotki.firebaseapp.com",
+      projectId: "lms-salu-ghotki",
+      storageBucket: "lms-salu-ghotki.firebasestorage.app",
+      messagingSenderId: "697640974761",
+      appId: "1:697640974761:web:1e0b7b9b3615ea7b956cb8",
+      databaseURL: "https://lms-salu-ghotki-default-rtdb.asia-southeast1.firebasedatabase.app"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getDatabase(app);
+    const provider = new GoogleAuthProvider();
+
+    // ─── Constants ──────────────────────────────────────────────
+    const ADMIN_EMAIL = "departmentofenglish064@gmail.com";
+    const LOGO = "https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEhKVuDaGpypHWWRbcin_iV8WvcRZpqQRCeNn1vVgjbaZjygpsJH-QGpSe5Psz5Ishh8l_j39Y1zm3TAAEn4q6ZsNLrQe83U80JkrY_qPh9t710JHedVVldoWG7ZJo8s20gtbBK_Li8wdrhEkC_0ibyNFyLA_B6oRlzyzgKqy5OKzkuFRbT1WxjNXivjbalV/s225/images%20(5).jpeg";
+    const ROLES = {
+      admin: "Admin",
+      teacher: "Teacher",
+      student: "Student",
+      clerk: "Clerk",
+      finance: "Finance Wing",
+      exam: "Exam Wing",
+      admission: "Admission Wing",
+      pvc: "Pro Vice Chancellor"
+    };
+    const DAYS = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+    const canManageStudents = () => profile && ["exam", "admission"].includes(profile.role);
+    const ICONS = {
+      calendar: `<svg class="widget-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>`,
+      alert: `<svg class="widget-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>`,
+      bill: `<svg class="widget-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg>`,
+      leave: `<svg class="widget-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>`,
+      book: `<svg class="widget-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>`,
+      money: `<svg class="widget-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v12M15 9.5c0-1.1-1.3-2-3-2s-3 .9-3 2 1.3 2 3 2 3 .9 3 2-1.3 2-3 2-3-.9-3-2"/></svg>`,
+      check: `<svg class="widget-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>`
+    };
+
+    function monthKey(d = new Date()) {
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
+    }
+
+    async function countRegularLeavesThisMonth(uid) {
+      const leaves = await dbGet("leaves") || {};
+      const mk = monthKey();
+      return Object.values(leaves).filter(l =>
+        l.by === uid && l.type === "regular" && (l.status === "approved" || l.status === "pending") &&
+        (l.month === mk || (l.from || "").startsWith(mk))
+      ).length;
+    }
+
+    async function isOnApprovedLeave(uid, dateStr = todayStr()) {
+      const leaves = await dbGet("leaves") || {};
+      return Object.values(leaves).some(l =>
+        l.by === uid && l.status === "approved" &&
+        l.from <= dateStr && (!l.to || l.to >= dateStr)
+      );
+    }
+
+    async function calendarWidgetHtml() {
+      const cal = await dbGet("calendar") || {};
+      const items = Object.entries(cal)
+        .sort((a,b) => (a[1].date||"").localeCompare(b[1].date||""))
+        .filter(([_,c]) => c.date >= todayStr())
+        .slice(0, 6);
+      if (!items.length) return `<div class="card"><div class="card-title">${ICONS.calendar} University Calendar</div><div class="empty" style="padding:1rem;">No upcoming events</div></div>`;
+      return `<div class="card"><div class="card-title">${ICONS.calendar} University Calendar</div>
+        ${items.map(([_,c]) => `
+          <div class="cal-item ${c.type==="holiday"?"holiday":"event"}">
+            <div class="cal-date">${esc(c.date)} · ${c.type==="holiday"?"Holiday":"Event"}</div>
+            <div>${esc(c.title)}</div>
+            ${c.description ? `<div style="font-size:0.8rem;color:var(--text-muted);">${esc(c.description)}</div>` : ""}
+          </div>
+        `).join("")}
+      </div>`;
+    }
+
+    function leaveFormHtml(role) {
+      return `
+        <div class="card">
+          <div class="card-title">${ICONS.leave} Request Leave</div>
+          <form id="form-leave">
+            <div class="form-group">
+              <label>Leave type</label>
+              <select name="type" id="leave-type">
+                <option value="regular">Regular (max 2 / month)</option>
+                <option value="medical">Medical leave (special)</option>
+                <option value="study">Study leave (special)</option>
+              </select>
+            </div>
+            <div class="form-row">
+              <div class="form-group"><label>From</label><input name="from" type="date" required value="${todayStr()}" /></div>
+              <div class="form-group"><label>To</label><input name="to" type="date" required value="${todayStr()}" /></div>
+            </div>
+            <div class="form-group"><label>Reason</label><textarea name="reason" rows="2" required></textarea></div>
+            <div class="form-group" id="leave-proof-wrap" style="display:none;">
+              <label>Proof image URL (required for special leave)</label>
+              <input name="proofURL" placeholder="https://..." />
+            </div>
+            <button type="submit" class="btn btn-primary">Submit Leave</button>
+          </form>
+        </div>`;
+    }
+
+    function bindLeaveForm(rerender) {
+      const typeSel = document.getElementById("leave-type");
+      const proofWrap = document.getElementById("leave-proof-wrap");
+      if (typeSel && proofWrap) {
+        typeSel.onchange = () => {
+          proofWrap.style.display = typeSel.value === "regular" ? "none" : "block";
+        };
+      }
+      const form = document.getElementById("form-leave");
+      if (!form) return;
+      form.onsubmit = async (e) => {
+        e.preventDefault();
+        const fd = new FormData(form);
+        const type = fd.get("type");
+        const from = fd.get("from");
+        const to = fd.get("to");
+        if (type === "regular") {
+          const count = await countRegularLeavesThisMonth(profile.uid);
+          if (count >= 2) {
+            toast("Only 2 regular leaves allowed per month", "error");
+            return;
+          }
+        } else {
+          const proof = (fd.get("proofURL")||"").trim();
+          if (!proof) { toast("Proof image URL required for special leave", "error"); return; }
+        }
+        try {
+          const id = pushId("leaves");
+          await dbSet(`leaves/${id}`, {
+            by: profile.uid,
+            byName: profile.name,
+            role: profile.role,
+            type,
+            from, to,
+            reason: fd.get("reason").trim(),
+            proofURL: (fd.get("proofURL")||"").trim(),
+            status: type === "regular" ? "approved" : "pending",
+            month: monthKey(new Date(from)),
+            ts: Date.now()
+          });
+          toast(type === "regular" ? "Leave recorded" : "Special leave sent for approval", "success");
+          if (rerender) rerender();
+        } catch (err) {
+          toast("Failed: " + (err.message||err.code), "error");
+        }
+      };
+    }
+
+    // ─── State ──────────────────────────────────────────────────
+    let currentUser = null;   // Firebase Auth user
+    let profile = null;       // RTDB profile
+    let activeTab = "dashboard";
+    let listeners = [];       // active onValue unsubscribers
+
+    // ─── IndexedDB (offline cache) ──────────────────────────────
+    const IDB_NAME = "salu-lms";
+    const IDB_VERSION = 1;
+    let idb = null;
+
+    function openIDB() {
+      return new Promise((resolve, reject) => {
+        const req = indexedDB.open(IDB_NAME, IDB_VERSION);
+        req.onupgradeneeded = (e) => {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains("cache")) {
+            db.createObjectStore("cache", { keyPath: "key" });
+          }
+        };
+        req.onsuccess = () => { idb = req.result; resolve(idb); };
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    async function idbSet(key, value) {
+      if (!idb) await openIDB();
+      return new Promise((resolve, reject) => {
+        const tx = idb.transaction("cache", "readwrite");
+        tx.objectStore("cache").put({ key, value, ts: Date.now() });
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    }
+
+    async function idbGet(key) {
+      if (!idb) await openIDB();
+      return new Promise((resolve, reject) => {
+        const tx = idb.transaction("cache", "readonly");
+        const req = tx.objectStore("cache").get(key);
+        req.onsuccess = () => resolve(req.result ? req.result.value : null);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    // ─── Helpers ────────────────────────────────────────────────
+    function toast(msg, type = "info") {
+      const el = document.createElement("div");
+      el.className = `toast ${type === "error" ? "error" : type === "success" ? "success" : ""}`;
+      el.textContent = msg;
+      document.getElementById("toast-container").appendChild(el);
+      setTimeout(() => el.remove(), 3500);
+    }
+
+    function esc(s) {
+      if (s == null) return "";
+      const d = document.createElement("div");
+      d.textContent = String(s);
+      return d.innerHTML;
+    }
+
+    function fmtDate(ts) {
+      if (!ts) return "—";
+      return new Date(ts).toLocaleDateString("en-PK", { day: "2-digit", month: "short", year: "numeric" });
+    }
+
+    function fmtTime(t) {
+      if (!t) return "";
+      const [h, m] = t.split(":").map(Number);
+      const ampm = h >= 12 ? "PM" : "AM";
+      const h12 = h % 12 || 12;
+      return `${h12}:${String(m).padStart(2,"0")} ${ampm}`;
+    }
+
+    function todayStr() {
+      return new Date().toISOString().slice(0, 10);
+    }
+
+    function dayName() {
+      return DAYS[new Date().getDay() === 0 ? 6 : new Date().getDay() - 1] || "Monday";
+    }
+
+    function nowMinutes() {
+      const d = new Date();
+      return d.getHours() * 60 + d.getMinutes();
+    }
+
+    function timeToMin(t) {
+      if (!t) return 0;
+      const [h, m] = t.split(":").map(Number);
+      return h * 60 + m;
+    }
+
+    function clearListeners() {
+      listeners.forEach(unsub => { try { unsub(); } catch(_){} });
+      listeners = [];
+    }
+
+    function listen(path, cb) {
+      const r = ref(db, path);
+      const unsub = onValue(r, snap => cb(snap.val()));
+      listeners.push(() => off(r));
+      return unsub;
+    }
+
+    async function dbGet(path) {
+      try {
+        const snap = await get(ref(db, path));
+        return snap.val();
+      } catch (e) {
+        console.warn("dbGet failed, trying cache", path, e);
+        return idbGet(path);
+      }
+    }
+
+    async function dbSet(path, data) {
+      await set(ref(db, path), data);
+      await idbSet(path, data);
+    }
+
+    async function dbUpdate(path, data) {
+      await update(ref(db, path), data);
+    }
+
+    async function dbRemove(path) {
+      await remove(ref(db, path));
+    }
+
+    function pushId(path) {
+      return push(ref(db, path)).key;
+    }
+
+    // ─── Auth & Profile ─────────────────────────────────────────
+    async function ensureProfile(user) {
+      const email = user.email.toLowerCase();
+      // Admin hard-coded
+      if (email === ADMIN_EMAIL.toLowerCase()) {
+        const p = {
+          uid: user.uid,
+          email,
+          name: user.displayName || "Administrator",
+          photoURL: user.photoURL || "",
+          role: "admin",
+          createdAt: Date.now()
+        };
+        await dbSet(`users/${user.uid}`, p);
+        await dbSet(`emails/${email.replace(/\./g, ",")}`, user.uid);
+        return p;
+      }
+
+      // Look up by email mapping
+      const emailKey = email.replace(/\./g, ",");
+      const uidMap = await dbGet(`emails/${emailKey}`);
+      if (uidMap) {
+        // Already linked
+        let p = await dbGet(`users/${uidMap}`);
+        if (p) {
+          // Update uid if needed (first login after admin created profile with placeholder)
+          if (uidMap !== user.uid) {
+            p.uid = user.uid;
+            p.photoURL = p.photoURL || user.photoURL || "";
+            await dbSet(`users/${user.uid}`, p);
+            await dbRemove(`users/${uidMap}`);
+            await dbSet(`emails/${emailKey}`, user.uid);
+          } else {
+            // Refresh photo if empty
+            if (!p.photoURL && user.photoURL) {
+              p.photoURL = user.photoURL;
+              await dbUpdate(`users/${user.uid}`, { photoURL: user.photoURL });
+            }
+          }
+          return p;
+        }
+      }
+
+      // Check if admin pre-created a pending profile under pending/{emailKey}
+      const pending = await dbGet(`pending/${emailKey}`);
+      if (pending) {
+        const p = {
+          uid: user.uid,
+          email,
+          name: pending.name || user.displayName || "User",
+          photoURL: user.photoURL || "",
+          role: pending.role,
+          department: pending.department || "",
+          batch: pending.batch || "",
+          bio: "",
+          researchHistory: "",
+          website: "",
+          social: {},
+          attendancePct: 100,
+          gpa: 0,
+          termBacks: 0,
+          feesTotal: pending.feesTotal || 0,
+          feesPaid: 0,
+          coursesPassed: 0,
+          coursesFailed: 0,
+          createdAt: Date.now()
+        };
+        await dbSet(`users/${user.uid}`, p);
+        await dbSet(`emails/${emailKey}`, user.uid);
+        await dbRemove(`pending/${emailKey}`);
+        // Add to department/batch indexes
+        if (p.role === "student" && p.department && p.batch) {
+          await dbSet(`deptStudents/${p.department}/${p.batch}/${user.uid}`, true);
+        }
+        if (p.role === "teacher" && p.department) {
+          await dbSet(`deptTeachers/${p.department}/${user.uid}`, true);
+        }
+        return p;
+      }
+
+      // No access
+      return null;
+    }
+
+    // ─── Render Login ───────────────────────────────────────────
+    function renderLogin() {
+      document.getElementById("app").innerHTML = `
+        <div class="login-wrap">
+          <div class="login-card">
+            <img src="${LOGO}" alt="SALU" style="width:72px;height:72px;margin-bottom:1rem;border-radius:12px;object-fit:cover;background:#fff;" onerror="this.src='icons/icon-192.svg'" />
+            <h1>SALU LMS</h1>
+            <p>Shah Abdul Latif University<br/>Ghotki Campus</p>
+            <button class="google-btn" id="btn-google">
+              <svg viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+              Sign in with Google
+            </button>
+            <p style="margin-top:1.5rem;font-size:0.8rem;color:var(--text-muted);">
+              Only authorised university accounts can access this system.
+            </p>
+            <p style="margin-top:1.25rem;font-size:0.75rem;color:var(--text-muted);">
+              <a href="https://www.authormasoncarter.com" target="_blank" rel="noopener" style="font-style:italic;color:var(--text-muted);">Developer: Mason Carter</a>
+            </p>
+          </div>
+        </div>
+      `;
+      document.getElementById("btn-google").onclick = async () => {
+        try {
+          await signInWithPopup(auth, provider);
+        } catch (e) {
+          toast("Sign-in failed: " + e.message, "error");
+        }
+      };
+    }
+
+    // ─── Render Shell ───────────────────────────────────────────
+    function renderShell(contentHtml) {
+      const roleLabel = ROLES[profile.role] || profile.role;
+      document.getElementById("app").innerHTML = `
+        <header class="header">
+          <div class="header-brand">
+            <img src="${LOGO}" alt="SALU" onerror="this.src='icons/icon-192.svg'" />
+            <span>SALU LMS</span>
+          </div>
+          <div class="header-actions">
+            <div class="user-chip">
+              <img src="${esc(profile.photoURL || LOGO)}" alt="" onerror="this.src='${LOGO}'" />
+              <span class="hide-sm">${esc(profile.name)}</span>
+              <span class="role-badge">${esc(roleLabel)}</span>
+            </div>
+            <button class="btn btn-outline" id="btn-logout">Logout</button>
+          </div>
+        </header>
+        <main class="main" id="main-content">${contentHtml}</main>
+        <footer class="footer">© Shah Abdul Latif University — LMS · Offline-capable</footer>
+      `;
+      document.getElementById("btn-logout").onclick = () => signOut(auth);
+    }
+
+    // ─── Tabs helper ────────────────────────────────────────────
+    function tabsHtml(tabs, active) {
+      return `<div class="tabs">${tabs.map(t =>
+        `<button class="tab ${t.id === active ? 'active' : ''}" data-tab="${t.id}">${t.label}</button>`
+      ).join("")}</div>`;
+    }
+
+    function bindTabs(handler) {
+      document.querySelectorAll(".tab").forEach(btn => {
+        btn.onclick = () => { activeTab = btn.dataset.tab; handler(); };
+      });
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  ADMIN DASHBOARD
+    // ═══════════════════════════════════════════════════════════
+    async function renderAdmin() {
+      clearListeners();
+      const tabs = [
+        { id: "dashboard", label: "Dashboard" },
+        { id: "users", label: "Staff Users" },
+        { id: "departments", label: "Departments" },
+        { id: "announcements", label: "Announcements" },
+        { id: "settings", label: "Settings" }
+      ];
+      if (!tabs.find(t => t.id === activeTab)) activeTab = "dashboard";
+
+      let body = "";
+      if (activeTab === "dashboard") {
+        const users = await dbGet("users") || {};
+        const depts = await dbGet("departments") || {};
+        const counts = { student:0, teacher:0, clerk:0, finance:0, exam:0, admission:0, pvc:0 };
+        Object.values(users).forEach(u => { if (counts[u.role] != null) counts[u.role]++; });
+        body = `
+          <div class="grid-3">
+            <div class="stat-card"><div class="stat-value">${Object.keys(depts).length}</div><div class="stat-label">Departments</div></div>
+            <div class="stat-card"><div class="stat-value">${counts.student}</div><div class="stat-label">Students</div></div>
+            <div class="stat-card"><div class="stat-value">${counts.teacher}</div><div class="stat-label">Teachers</div></div>
+            <div class="stat-card"><div class="stat-value">${counts.clerk}</div><div class="stat-label">Clerks</div></div>
+            <div class="stat-card"><div class="stat-value">${counts.finance}</div><div class="stat-label">Finance</div></div>
+            <div class="stat-card"><div class="stat-value">${counts.exam}</div><div class="stat-label">Exam Wing</div></div>
+            <div class="stat-card"><div class="stat-value">${counts.admission}</div><div class="stat-label">Admission Wing</div></div>
+          </div>
+          <div class="alert alert-info" style="margin-top:1rem;">Students, batches, and admissions are managed by <strong>Exam Wing</strong> and <strong>Admission Wing</strong> — not from Admin.</div>
+          <div class="card">
+            <div class="card-title">Quick Actions</div>
+            <div style="display:flex;flex-wrap:wrap;gap:0.5rem;">
+              <button class="btn btn-primary btn-sm" data-goto="users">Invite Staff</button>
+              <button class="btn btn-accent btn-sm" data-goto="departments">Add Department</button>
+              <button class="btn btn-outline btn-sm" data-goto="announcements">Post Announcement</button>
+            </div>
+          </div>
+        `;
+      } else if (activeTab === "users") {
+        body = await adminUsersHtml();
+      } else if (activeTab === "departments") {
+        body = await adminDeptsHtml();
+      } else if (activeTab === "announcements") {
+        body = await adminAnnHtml();
+      } else if (activeTab === "settings") {
+        const cal = await dbGet("calendar") || {};
+        const calRows = Object.entries(cal).sort((a,b)=>(a[1].date||"").localeCompare(b[1].date||"")).map(([id,c]) => `
+          <tr>
+            <td>${esc(c.date)}</td>
+            <td>${esc(c.title)}</td>
+            <td><span class="badge badge-info">${esc(c.type)}</span></td>
+            <td><button class="btn btn-danger btn-sm" data-del-cal="${esc(id)}">Delete</button></td>
+          </tr>
+        `).join("") || `<tr><td colspan="4" class="empty">No events</td></tr>`;
+        body = `
+          <div class="card">
+            <div class="card-title">${ICONS.calendar} University Calendar</div>
+            <form id="form-cal">
+              <div class="form-row">
+                <div class="form-group"><label>Date</label><input name="date" type="date" required /></div>
+                <div class="form-group"><label>Type</label>
+                  <select name="type"><option value="holiday">Holiday</option><option value="event">Event</option></select>
+                </div>
+              </div>
+              <div class="form-group"><label>Title</label><input name="title" required /></div>
+              <div class="form-group"><label>Description</label><input name="description" /></div>
+              <button type="submit" class="btn btn-primary">Add to Calendar</button>
+            </form>
+            <div class="table-wrap" style="margin-top:1rem;"><table>
+              <thead><tr><th>Date</th><th>Title</th><th>Type</th><th></th></tr></thead>
+              <tbody>${calRows}</tbody>
+            </table></div>
+          </div>
+          <div class="card">
+            <div class="card-title">System Info</div>
+            <p style="font-size:0.9rem;color:var(--text-muted);">Admin: ${esc(ADMIN_EMAIL)}</p>
+            <p style="font-size:0.85rem;margin-top:0.5rem;">Students &amp; batches: Exam / Admission Wing.</p>
+          </div>
+        `;
+      }
+
+      renderShell(`${tabsHtml(tabs, activeTab)}${body}`);
+      bindTabs(renderAdmin);
+      document.querySelectorAll("[data-goto]").forEach(b => {
+        b.onclick = () => { activeTab = b.dataset.goto; renderAdmin(); };
+      });
+      bindAdminHandlers();
+      if (activeTab === "settings") {
+        const formCal = document.getElementById("form-cal");
+        if (formCal) formCal.onsubmit = async (e) => {
+          e.preventDefault();
+          const fd = new FormData(formCal);
+          const id = pushId("calendar");
+          await dbSet(`calendar/${id}`, {
+            date: fd.get("date"), title: fd.get("title").trim(),
+            type: fd.get("type"), description: (fd.get("description")||"").trim(), ts: Date.now()
+          });
+          toast("Calendar entry added", "success");
+          renderAdmin();
+        };
+        document.querySelectorAll("[data-del-cal]").forEach(b => {
+          b.onclick = async () => {
+            await dbRemove(`calendar/${b.dataset.delCal}`);
+            toast("Deleted", "success");
+            renderAdmin();
+          };
+        });
+      }
+    }
+
+    async function adminUsersHtml() {
+      const pending = await dbGet("pending") || {};
+      const users = await dbGet("users") || {};
+      const depts = await dbGet("departments") || {};
+      const deptOpts = Object.entries(depts).map(([id,d]) => `<option value="${esc(id)}">${esc(d.name)}</option>`).join("");
+      const staffRoles = ["teacher","clerk","finance","exam","admission","pvc"];
+
+      let pendingRows = Object.entries(pending)
+        .filter(([_,p]) => p.role !== "student")
+        .map(([ek, p]) => `
+        <tr>
+          <td>${esc(p.name)}</td>
+          <td>${esc(ek.replace(/,/g,"."))}</td>
+          <td><span class="badge badge-info">${esc(ROLES[p.role]||p.role)}</span></td>
+          <td>${esc(p.department||"—")}</td>
+          <td><button class="btn btn-danger btn-sm" data-del-pending="${esc(ek)}">Remove</button></td>
+        </tr>
+      `).join("") || `<tr><td colspan="5" class="empty">No pending staff invitations</td></tr>`;
+
+      let userRows = Object.entries(users)
+        .filter(([_,u]) => u.role !== "admin" && u.role !== "student")
+        .map(([uid, u]) => `
+        <tr>
+          <td><img class="avatar-sm" src="${esc(u.photoURL||LOGO)}" onerror="this.style.display='none'" style="vertical-align:middle;margin-right:0.4rem;" />${esc(u.name)}</td>
+          <td>${esc(u.email)}</td>
+          <td><span class="badge badge-info">${esc(ROLES[u.role]||u.role)}</span></td>
+          <td>${esc(u.department||"—")}</td>
+          <td>
+            <button class="btn btn-danger btn-sm" data-del-user="${esc(uid)}">Delete</button>
+          </td>
+        </tr>
+      `).join("") || `<tr><td colspan="5" class="empty">No staff users yet</td></tr>`;
+
+      return `
+        <div class="card">
+          <div class="card-title">Invite Staff (not students)</div>
+          <div class="alert alert-info">Students are added by Exam Wing / Admission Wing only.</div>
+          <form id="form-invite">
+            <div class="form-row">
+              <div class="form-group"><label>Full Name</label><input name="name" required /></div>
+              <div class="form-group"><label>Email</label><input name="email" type="email" required /></div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Role</label>
+                <select name="role" required>
+                  <option value="teacher">Teacher</option>
+                  <option value="clerk">Clerk</option>
+                  <option value="finance">Finance Wing</option>
+                  <option value="exam">Exam Wing</option>
+                  <option value="admission">Admission Wing</option>
+                  <option value="pvc">Pro Vice Chancellor</option>
+                </select>
+              </div>
+              <div class="form-group"><label>Department</label><select name="department"><option value="">—</option>${deptOpts}</select></div>
+            </div>
+            <input type="hidden" name="batch" value="" />
+            <input type="hidden" name="feesTotal" value="0" />
+            <button type="submit" class="btn btn-primary">Invite Staff</button>
+          </form>
+        </div>
+        <div class="card">
+          <div class="card-title">Pending Staff Invitations</div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Dept</th><th></th></tr></thead>
+            <tbody>${pendingRows}</tbody>
+          </table></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Active Staff</div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Dept</th><th></th></tr></thead>
+            <tbody>${userRows}</tbody>
+          </table></div>
+        </div>
+      `;
+    }
+
+    async function adminDeptsHtml() {
+      const depts = await dbGet("departments") || {};
+      const rows = Object.entries(depts).map(([id, d]) => `
+        <tr>
+          <td>${esc(d.name)}</td>
+          <td>${esc(d.code||"—")}</td>
+          <td>
+            <button class="btn btn-outline btn-sm" data-edit-dept="${esc(id)}">Edit</button>
+            <button class="btn btn-danger btn-sm" data-del-dept="${esc(id)}">Delete</button>
+          </td>
+        </tr>
+      `).join("") || `<tr><td colspan="3" class="empty">No departments</td></tr>`;
+      return `
+        <div class="card">
+          <div class="card-title">Add Department</div>
+          <form id="form-dept" class="form-row">
+            <div class="form-group"><label>Name</label><input name="name" required placeholder="e.g. Department of English" /></div>
+            <div class="form-group"><label>Code</label><input name="code" placeholder="e.g. ENG" /></div>
+            <div class="form-group" style="display:flex;align-items:flex-end;"><button type="submit" class="btn btn-primary">Add</button></div>
+          </form>
+        </div>
+        <div class="card">
+          <div class="card-title">Departments</div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Name</th><th>Code</th><th></th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table></div>
+        </div>
+      `;
+    }
+
+    async function adminBatchesHtml() {
+      const batches = await dbGet("batches") || {};
+      const depts = await dbGet("departments") || {};
+      const deptOpts = Object.entries(depts).map(([id,d]) => `<option value="${esc(id)}">${esc(d.name)}</option>`).join("");
+      const rows = Object.entries(batches).map(([id, b]) => `
+        <tr>
+          <td>${esc(b.name)}</td>
+          <td>${esc(depts[b.department]?.name || b.department || "—")}</td>
+          <td>${esc(b.year||"—")}</td>
+          <td>
+            <button class="btn btn-danger btn-sm" data-del-batch="${esc(id)}">Delete Batch + Students Index</button>
+          </td>
+        </tr>
+      `).join("") || `<tr><td colspan="4" class="empty">No batches</td></tr>`;
+      return `
+        <div class="card">
+          <div class="card-title">Add Batch</div>
+          <form id="form-batch">
+            <div class="form-row">
+              <div class="form-group"><label>Batch Name</label><input name="name" required placeholder="e.g. BS English 2022-26" /></div>
+              <div class="form-group"><label>Department</label><select name="department" required><option value="">Select…</option>${deptOpts}</select></div>
+            </div>
+            <div class="form-group"><label>Year / Session</label><input name="year" placeholder="2022-26" /></div>
+            <button type="submit" class="btn btn-primary">Add Batch</button>
+          </form>
+        </div>
+        <div class="card">
+          <div class="card-title">Batches</div>
+          <div class="alert alert-warning">Deleting a batch removes the batch index. Individual student accounts remain until deleted separately.</div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Name</th><th>Department</th><th>Year</th><th></th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table></div>
+        </div>
+      `;
+    }
+
+    async function adminAnnHtml() {
+      const anns = await dbGet("announcements") || {};
+      const depts = await dbGet("departments") || {};
+      const deptOpts = Object.entries(depts).map(([id,d]) => `<option value="${esc(id)}">${esc(d.name)}</option>`).join("");
+      const items = Object.entries(anns).sort((a,b) => (b[1].ts||0)-(a[1].ts||0)).map(([id, a]) => `
+        <div class="ann-item">
+          <div class="ann-meta">${esc(a.byName||"Admin")} · ${fmtDate(a.ts)} · ${a.department ? esc(depts[a.department]?.name||a.department) : "All"}</div>
+          <div class="ann-body">${esc(a.text)}</div>
+          <button class="btn btn-danger btn-sm" style="margin-top:0.4rem;" data-del-ann="${esc(id)}">Delete</button>
+        </div>
+      `).join("") || `<div class="empty">No announcements</div>`;
+      return `
+        <div class="card">
+          <div class="card-title">Post Announcement</div>
+          <form id="form-ann">
+            <div class="form-group"><label>Message</label><textarea name="text" rows="3" required></textarea></div>
+            <div class="form-group"><label>Department (blank = all)</label><select name="department"><option value="">All Departments</option>${deptOpts}</select></div>
+            <button type="submit" class="btn btn-primary">Post</button>
+          </form>
+        </div>
+        <div class="card"><div class="card-title">All Announcements</div>${items}</div>
+      `;
+    }
+
+    function bindAdminHandlers() {
+      const formInvite = document.getElementById("form-invite");
+      if (formInvite) formInvite.onsubmit = async (e) => {
+        e.preventDefault();
+        const fd = new FormData(formInvite);
+        const email = fd.get("email").toLowerCase().trim();
+        const emailKey = email.replace(/\./g, ",");
+        try {
+          await dbSet(`pending/${emailKey}`, {
+            name: fd.get("name").trim(),
+            role: fd.get("role"),
+            department: fd.get("department") || "",
+            batch: fd.get("batch") || "",
+            feesTotal: Number(fd.get("feesTotal")||0),
+            invitedAt: Date.now()
+          });
+          toast("Invitation created. User can now sign in with Google.", "success");
+          renderAdmin();
+        } catch (err) {
+          console.error(err);
+          toast("Failed to save invite: " + (err.message || err.code || "permission denied — publish updated database rules"), "error");
+        }
+      };
+
+      document.querySelectorAll("[data-del-pending]").forEach(b => {
+        b.onclick = async () => {
+          if (!confirm("Remove this invitation?")) return;
+          await dbRemove(`pending/${b.dataset.delPending}`);
+          toast("Removed", "success");
+          renderAdmin();
+        };
+      });
+
+      document.querySelectorAll("[data-del-user]").forEach(b => {
+        b.onclick = async () => {
+          if (!confirm("Delete this user permanently?")) return;
+          const uid = b.dataset.delUser;
+          const u = await dbGet(`users/${uid}`);
+          if (u) {
+            const ek = (u.email||"").replace(/\./g, ",");
+            await dbRemove(`users/${uid}`);
+            if (ek) await dbRemove(`emails/${ek}`);
+            if (u.role === "student" && u.department && u.batch) {
+              await dbRemove(`deptStudents/${u.department}/${u.batch}/${uid}`);
+            }
+            if (u.role === "teacher" && u.department) {
+              await dbRemove(`deptTeachers/${u.department}/${uid}`);
+            }
+          }
+          toast("User deleted", "success");
+          renderAdmin();
+        };
+      });
+
+      const formDept = document.getElementById("form-dept");
+      if (formDept) formDept.onsubmit = async (e) => {
+        e.preventDefault();
+        const fd = new FormData(formDept);
+        const id = pushId("departments");
+        await dbSet(`departments/${id}`, { name: fd.get("name").trim(), code: fd.get("code").trim(), createdAt: Date.now() });
+        toast("Department added", "success");
+        renderAdmin();
+      };
+
+      document.querySelectorAll("[data-del-dept]").forEach(b => {
+        b.onclick = async () => {
+          if (!confirm("Delete this department?")) return;
+          await dbRemove(`departments/${b.dataset.delDept}`);
+          toast("Deleted", "success");
+          renderAdmin();
+        };
+      });
+
+      document.querySelectorAll("[data-edit-dept]").forEach(b => {
+        b.onclick = async () => {
+          const id = b.dataset.editDept;
+          const d = await dbGet(`departments/${id}`);
+          if (!d) return;
+          const name = prompt("Department name:", d.name);
+          if (name == null) return;
+          const code = prompt("Code:", d.code || "");
+          await dbUpdate(`departments/${id}`, { name: name.trim(), code: (code||"").trim() });
+          toast("Updated", "success");
+          renderAdmin();
+        };
+      });
+
+      const formBatch = document.getElementById("form-batch");
+      if (formBatch) formBatch.onsubmit = async (e) => {
+        e.preventDefault();
+        const fd = new FormData(formBatch);
+        const id = pushId("batches");
+        await dbSet(`batches/${id}`, {
+          name: fd.get("name").trim(),
+          department: fd.get("department"),
+          year: fd.get("year").trim(),
+          createdAt: Date.now()
+        });
+        toast("Batch added", "success");
+        renderAdmin();
+      };
+
+      document.querySelectorAll("[data-del-batch]").forEach(b => {
+        b.onclick = async () => {
+          if (!confirm("Delete this batch and its student index?")) return;
+          const id = b.dataset.delBatch;
+          const batch = await dbGet(`batches/${id}`);
+          if (batch?.department) {
+            await dbRemove(`deptStudents/${batch.department}/${id}`);
+          }
+          await dbRemove(`batches/${id}`);
+          toast("Batch deleted", "success");
+          renderAdmin();
+        };
+      });
+
+      const formAnn = document.getElementById("form-ann");
+      if (formAnn) formAnn.onsubmit = async (e) => {
+        e.preventDefault();
+        const fd = new FormData(formAnn);
+        const id = pushId("announcements");
+        await dbSet(`announcements/${id}`, {
+          text: fd.get("text").trim(),
+          department: fd.get("department") || "",
+          by: profile.uid,
+          byName: profile.name,
+          ts: Date.now()
+        });
+        toast("Announcement posted", "success");
+        renderAdmin();
+      };
+
+      document.querySelectorAll("[data-del-ann]").forEach(b => {
+        b.onclick = async () => {
+          if (!confirm("Delete announcement?")) return;
+          await dbRemove(`announcements/${b.dataset.delAnn}`);
+          toast("Deleted", "success");
+          renderAdmin();
+        };
+      });
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  STUDENT DASHBOARD
+    // ═══════════════════════════════════════════════════════════
+    async function renderStudent() {
+      clearListeners();
+      const tabs = [
+        { id: "dashboard", label: "Dashboard" },
+        { id: "more", label: "Timetable · Marks · Leave" },
+        { id: "profile", label: "Profile" }
+      ];
+      if (!tabs.find(t => t.id === activeTab)) activeTab = "dashboard";
+
+      let body = "";
+      if (activeTab === "dashboard") {
+        const gpa = profile.gpa ?? 0;
+        const feesRem = (profile.feesTotal || 0) - (profile.feesPaid || 0);
+        const termBacks = profile.termBacks || 0;
+        const subAtt = await dbGet(`subjectAtt/${profile.uid}`) || {};
+        const subEntries = Object.entries(subAtt);
+
+        let alerts = "";
+        for (const [sub, s] of subEntries) {
+          const pct = s.total ? (s.present / s.total) * 100 : 100;
+          if (pct < 70) {
+            alerts += `<div class="alert alert-danger">${ICONS.alert} <strong>${esc(sub)}</strong>: ${pct.toFixed(1)}% attendance — you cannot sit the exam for this subject (minimum 70%).</div>`;
+          } else if (pct < 80) {
+            alerts += `<div class="alert alert-warning">${ICONS.alert} <strong>${esc(sub)}</strong>: ${pct.toFixed(1)}% — attendance falling. Stay above 70%.</div>`;
+          }
+        }
+        if (gpa > 0 && gpa < 1.7) {
+          alerts += `<div class="alert alert-danger">${ICONS.alert} GPA ${gpa.toFixed(2)} — Term Back (${termBacks || 1}). Third term back = account removal.</div>`;
+        } else if (gpa > 0 && gpa < 1.85) {
+          alerts += `<div class="alert alert-warning">${ICONS.alert} GPA ${gpa.toFixed(2)} — near Term Back threshold (1.7).</div>`;
+        }
+        if (termBacks >= 2) {
+          alerts += `<div class="alert alert-danger">Critical: ${termBacks} term backs. One more below 1.7 GPA removes your account.</div>`;
+        }
+
+        const attRows = subEntries.map(([sub, s]) => {
+          const pct = s.total ? (s.present / s.total) * 100 : 100;
+          const cls = pct < 70 ? "danger" : pct < 80 ? "warn" : "ok";
+          return `<div class="stat-card ${cls}"><div class="stat-value">${pct.toFixed(0)}%</div><div class="stat-label">${esc(sub)}</div><div style="font-size:0.7rem;color:var(--text-muted);margin-top:0.2rem;">${s.present}/${s.total} classes</div></div>`;
+        }).join("") || `<div class="empty" style="grid-column:1/-1;padding:1rem;">No subject attendance yet</div>`;
+
+        body = `
+          ${alerts}
+          <div class="grid-3">
+            <div class="stat-card ${gpa > 0 && gpa < 1.7 ? 'danger' : gpa < 1.85 ? 'warn' : 'ok'}">
+              <div class="stat-value">${gpa ? gpa.toFixed(2) : "—"}</div>
+              <div class="stat-label">Aggregate GPA</div>
+            </div>
+            <div class="stat-card ${termBacks ? 'danger' : 'ok'}">
+              <div class="stat-value">${termBacks}</div>
+              <div class="stat-label">Term Backs</div>
+            </div>
+            <div class="stat-card ${feesRem > 0 ? 'warn' : 'ok'}">
+              <div class="stat-value">${feesRem.toLocaleString()}</div>
+              <div class="stat-label">Fees Remaining</div>
+            </div>
+          </div>
+          <div class="card" style="margin-top:1rem;">
+            <div class="card-title">${ICONS.book} Attendance by Subject</div>
+            <div class="grid-3">${attRows}</div>
+          </div>
+          <div class="widget-grid" style="margin-top:1rem;">
+            ${await calendarWidgetHtml()}
+            <div class="card">
+              <div class="card-title">${ICONS.book} Quick stats</div>
+              <p style="font-size:0.9rem;color:var(--text-muted);">Passed: <strong>${profile.coursesPassed||0}</strong> · Failed: <strong>${profile.coursesFailed||0}</strong></p>
+              <p style="font-size:0.9rem;color:var(--text-muted);margin-top:0.4rem;">Fees paid: ${(profile.feesPaid||0).toLocaleString()} PKR</p>
+            </div>
+          </div>
+        `;
+      } else if (activeTab === "more") {
+        body = `
+          ${await studentTimetableHtml()}
+          ${await studentMarksHtml()}
+          ${await studentAnnHtml()}
+          ${leaveFormHtml("student")}
+        `;
+      } else if (activeTab === "profile") {
+        body = profileEditHtml();
+      }
+
+      renderShell(`${tabsHtml(tabs, activeTab)}${body}`);
+      bindTabs(renderStudent);
+      bindProfileForm();
+      if (activeTab === "more") {
+        bindLeaveForm(renderStudent);
+        const msBtn = document.getElementById("btn-marksheet");
+        if (msBtn) msBtn.onclick = () => openMarksheet();
+      }
+    }
+
+    async function studentTimetableHtml() {
+      if (!profile.department) return `<div class="card"><div class="empty">No department assigned.</div></div>`;
+      const tt = await dbGet(`timetable/${profile.department}`) || {};
+      const today = dayName();
+      let html = "";
+      for (const day of DAYS) {
+        const slots = tt[day] || {};
+        const list = Object.entries(slots).sort((a,b) => timeToMin(a[1].start) - timeToMin(b[1].start));
+        if (!list.length) continue;
+        html += `<div class="card"><div class="card-title">${day}${day===today?' · Today':''}</div><div class="tt-grid">`;
+        for (const [sid, s] of list) {
+          const now = nowMinutes();
+          const start = timeToMin(s.start);
+          const end = timeToMin(s.end);
+          let cls = "";
+          if (day === today) {
+            if (now >= start && now < end) cls = "current";
+            else if (now < start && now >= start - 30) cls = "upcoming";
+          }
+          html += `<div class="tt-slot ${cls}">
+            <div class="tt-time">${fmtTime(s.start)} – ${fmtTime(s.end)}</div>
+            <div class="tt-subject">${esc(s.subject)}</div>
+            <div class="tt-meta">${esc(s.teacherName||"")} · ${esc(s.room||"")}</div>
+          </div>`;
+        }
+        html += `</div></div>`;
+      }
+      return html || `<div class="card"><div class="empty">No timetable published for your department yet.</div></div>`;
+    }
+
+    function gradePoint(total100) {
+      if (total100 >= 85) return 4.0;
+      if (total100 >= 80) return 3.7;
+      if (total100 >= 75) return 3.3;
+      if (total100 >= 70) return 3.0;
+      if (total100 >= 65) return 2.7;
+      if (total100 >= 60) return 2.3;
+      if (total100 >= 55) return 2.0;
+      if (total100 >= 50) return 1.7;
+      if (total100 >= 45) return 1.3;
+      if (total100 >= 40) return 1.0;
+      return 0.0;
+    }
+
+    function letterGrade(total100) {
+      if (total100 >= 85) return "A";
+      if (total100 >= 80) return "A-";
+      if (total100 >= 75) return "B+";
+      if (total100 >= 70) return "B";
+      if (total100 >= 65) return "B-";
+      if (total100 >= 60) return "C+";
+      if (total100 >= 55) return "C";
+      if (total100 >= 50) return "C-";
+      if (total100 >= 45) return "D+";
+      if (total100 >= 40) return "D";
+      return "F";
+    }
+
+    function attMarksFromPct(pct) {
+      return Math.round(Math.min(100, Math.max(0, pct)) / 10 * 10) / 10; // 0–10 scale, 1 decimal
+    }
+
+    async function studentMarksHtml() {
+      const marks = await dbGet(`marks/${profile.uid}`) || {};
+      const entries = Object.entries(marks);
+      let gpaSum = 0, gpaN = 0;
+      const rows = entries.map(([sub, m]) => {
+        const mid = Number(m.midterm ?? 0);
+        const fin = Number(m.final ?? 0);
+        const att = Number(m.attendance ?? 0);
+        const pres = Number(m.presentation ?? 0);
+        const total = m.total100 != null ? Number(m.total100) : (mid + fin + att + pres);
+        const gp = gradePoint(total);
+        gpaSum += gp; gpaN++;
+        return `
+          <tr>
+            <td>${esc(m.subject||sub)}</td>
+            <td>${mid}/30</td>
+            <td>${fin}/50</td>
+            <td>${att}/10</td>
+            <td>${pres}/10</td>
+            <td><strong>${total}/100</strong></td>
+            <td>${letterGrade(total)}</td>
+            <td>${gp.toFixed(1)}</td>
+          </tr>`;
+      }).join("") || `<tr><td colspan="8" class="empty">No marks uploaded yet</td></tr>`;
+      const aggGpa = gpaN ? (gpaSum / gpaN) : 0;
+
+      return `<div class="card"><div class="card-title">${ICONS.book} My Marks</div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Subject</th><th>Mid (30)</th><th>Final (50)</th><th>Att (10)</th><th>Pres (10)</th><th>Total</th><th>Grade</th><th>GP</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table></div>
+        ${gpaN ? `<p style="margin-top:0.75rem;font-weight:600;">Aggregate GPA: ${aggGpa.toFixed(2)}</p>
+        <button class="btn btn-primary" id="btn-marksheet" style="margin-top:0.75rem;">Download Marksheet</button>` : ""}
+      </div>`;
+    }
+
+    async function openMarksheet() {
+      const marks = await dbGet(`marks/${profile.uid}`) || {};
+      const depts = await dbGet("departments") || {};
+      const batches = await dbGet("batches") || {};
+      const entries = Object.entries(marks);
+      if (!entries.length) { toast("No marks available yet", "error"); return; }
+      let gpaSum = 0, gpaN = 0;
+      const rows = entries.map(([sub, m]) => {
+        const mid = Number(m.midterm ?? 0);
+        const fin = Number(m.final ?? 0);
+        const att = Number(m.attendance ?? 0);
+        const pres = Number(m.presentation ?? 0);
+        const total = m.total100 != null ? Number(m.total100) : (mid + fin + att + pres);
+        const gp = gradePoint(total);
+        gpaSum += gp; gpaN++;
+        return `<tr>
+          <td style="padding:8px;border:1px solid #ccc;">${esc(m.subject||sub)}</td>
+          <td style="padding:8px;border:1px solid #ccc;text-align:center;">${mid}</td>
+          <td style="padding:8px;border:1px solid #ccc;text-align:center;">${fin}</td>
+          <td style="padding:8px;border:1px solid #ccc;text-align:center;">${att}</td>
+          <td style="padding:8px;border:1px solid #ccc;text-align:center;">${pres}</td>
+          <td style="padding:8px;border:1px solid #ccc;text-align:center;font-weight:700;">${total}</td>
+          <td style="padding:8px;border:1px solid #ccc;text-align:center;">${letterGrade(total)}</td>
+          <td style="padding:8px;border:1px solid #ccc;text-align:center;">${gp.toFixed(1)}</td>
+        </tr>`;
+      }).join("");
+      const aggGpa = gpaN ? (gpaSum / gpaN) : 0;
+      const deptName = depts[profile.department]?.name || profile.department || "—";
+      const batchName = batches[profile.batch]?.name || profile.batch || "—";
+      const w = window.open("", "_blank");
+      w.document.write(`<!DOCTYPE html><html><head><title>Marksheet — ${esc(profile.name)}</title>
+        <style>
+          body{font-family:Georgia,serif;padding:32px;color:#1a1a1a;max-width:800px;margin:0 auto;}
+          .head{text-align:center;margin-bottom:24px;border-bottom:2px solid #3d5a80;padding-bottom:16px;}
+          .head img{width:72px;height:72px;object-fit:cover;border-radius:8px;}
+          h1{font-size:1.4rem;margin:8px 0 4px;color:#3d5a80;}
+          .meta{font-size:0.95rem;margin:12px 0;}
+          table{width:100%;border-collapse:collapse;font-size:0.9rem;}
+          th{background:#eef2f8;padding:8px;border:1px solid #ccc;text-align:left;}
+          .foot{margin-top:24px;font-size:0.85rem;color:#555;}
+          @media print{.no-print{display:none!important;}}
+        </style></head><body>
+        <div class="head">
+          <img src="${LOGO}" alt="SALU" />
+          <h1>Shah Abdul Latif University</h1>
+          <div>Ghotki Campus — Official Marksheet</div>
+        </div>
+        <div class="meta">
+          <div><strong>Student:</strong> ${esc(profile.name)}</div>
+          <div><strong>Email:</strong> ${esc(profile.email)}</div>
+          <div><strong>Department:</strong> ${esc(deptName)}</div>
+          <div><strong>Batch:</strong> ${esc(batchName)}</div>
+          <div><strong>Date:</strong> ${todayStr()}</div>
+        </div>
+        <table>
+          <thead><tr>
+            <th>Subject</th><th>Mid (30)</th><th>Final (50)</th><th>Att (10)</th><th>Pres (10)</th><th>Total (100)</th><th>Grade</th><th>GP</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+        <p style="margin-top:16px;font-size:1.1rem;"><strong>Aggregate GPA: ${aggGpa.toFixed(2)}</strong></p>
+        <div class="foot">
+          Midterm 30 · Final 50 · Attendance 10 (auto) · Presentation 10 · Total 100<br/>
+          Generated from SALU LMS · ${new Date().toLocaleString()}
+        </div>
+        <p class="no-print" style="margin-top:20px;text-align:center;">
+          <button onclick="window.print()" style="padding:10px 24px;font-size:1rem;cursor:pointer;">Print / Save as PDF</button>
+        </p>
+        </body></html>`);
+      w.document.close();
+    }
+
+    async function studentAnnHtml() {
+      const anns = await dbGet("announcements") || {};
+      const items = Object.entries(anns)
+        .filter(([_,a]) => !a.department || a.department === profile.department)
+        .sort((a,b) => (b[1].ts||0)-(a[1].ts||0))
+        .map(([_,a]) => `
+          <div class="ann-item">
+            <div class="ann-meta">${esc(a.byName||"")} · ${fmtDate(a.ts)}</div>
+            <div class="ann-body">${esc(a.text)}</div>
+          </div>
+        `).join("") || `<div class="empty">No announcements</div>`;
+      return `<div class="card"><div class="card-title">Announcements</div>${items}</div>`;
+    }
+
+    function profileEditHtml() {
+      const s = profile.social || {};
+      return `
+        <div class="card">
+          <div class="card-title">My Profile</div>
+          <div style="display:flex;gap:1.25rem;align-items:center;margin-bottom:1.25rem;flex-wrap:wrap;">
+            <img class="avatar" src="${esc(profile.photoURL||LOGO)}" onerror="this.src='${LOGO}'" id="preview-avatar" />
+            <div>
+              <div style="font-weight:700;font-size:1.1rem;">${esc(profile.name)}</div>
+              <div style="color:var(--text-muted);font-size:0.9rem;">${esc(profile.email)}</div>
+              <div style="color:var(--text-muted);font-size:0.85rem;">${esc(ROLES[profile.role])}</div>
+            </div>
+          </div>
+          <form id="form-profile">
+            <div class="form-group"><label>Photo URL</label><input name="photoURL" value="${esc(profile.photoURL||'')}" placeholder="https://..." /></div>
+            <div class="form-group"><label>Bio</label><textarea name="bio" rows="3">${esc(profile.bio||'')}</textarea></div>
+            <div class="form-group"><label>Research History</label><textarea name="researchHistory" rows="3">${esc(profile.researchHistory||'')}</textarea></div>
+            <div class="form-group"><label>Website</label><input name="website" value="${esc(profile.website||'')}" placeholder="https://..." /></div>
+            <div class="form-row">
+              <div class="form-group"><label>LinkedIn</label><input name="linkedin" value="${esc(s.linkedin||'')}" /></div>
+              <div class="form-group"><label>Twitter / X</label><input name="twitter" value="${esc(s.twitter||'')}" /></div>
+            </div>
+            <div class="form-row">
+              <div class="form-group"><label>Facebook</label><input name="facebook" value="${esc(s.facebook||'')}" /></div>
+              <div class="form-group"><label>ORCID / ResearchGate</label><input name="orcid" value="${esc(s.orcid||'')}" /></div>
+            </div>
+            <button type="submit" class="btn btn-primary">Save Profile</button>
+          </form>
+        </div>
+      `;
+    }
+
+    function bindProfileForm() {
+      const form = document.getElementById("form-profile");
+      if (!form) return;
+      form.onsubmit = async (e) => {
+        e.preventDefault();
+        const fd = new FormData(form);
+        const updates = {
+          photoURL: fd.get("photoURL").trim(),
+          bio: fd.get("bio").trim(),
+          researchHistory: fd.get("researchHistory").trim(),
+          website: fd.get("website").trim(),
+          social: {
+            linkedin: fd.get("linkedin").trim(),
+            twitter: fd.get("twitter").trim(),
+            facebook: fd.get("facebook").trim(),
+            orcid: fd.get("orcid").trim()
+          }
+        };
+        await dbUpdate(`users/${profile.uid}`, updates);
+        Object.assign(profile, updates);
+        toast("Profile saved", "success");
+        // re-render current role view
+        routeToRole();
+      };
+      const photoInp = form.querySelector('[name="photoURL"]');
+      if (photoInp) photoInp.oninput = () => {
+        const img = document.getElementById("preview-avatar");
+        if (img && photoInp.value) img.src = photoInp.value;
+      };
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  TEACHER DASHBOARD
+    // ═══════════════════════════════════════════════════════════
+    async function renderTeacher() {
+      clearListeners();
+      const tabs = [
+        { id: "dashboard", label: "Dashboard" },
+        { id: "attendance", label: "Attendance · Marks" },
+        { id: "profile", label: "Profile · Leave · Bills" }
+      ];
+      if (!tabs.find(t => t.id === activeTab)) activeTab = "dashboard";
+
+      let body = "";
+      if (activeTab === "dashboard") {
+        body = await teacherDashHtml();
+      } else if (activeTab === "attendance") {
+        body = (await teacherAttHtml()) + (await teacherMarksHtml()) + (await teacherAnnHtml());
+      } else if (activeTab === "profile") {
+        body = profileEditHtml() + leaveFormHtml("teacher") + `
+          <div class="card">
+            <div class="card-title">${ICONS.bill} Submit Pending Bill</div>
+            <form id="form-bill">
+              <div class="form-group"><label>Description</label><input name="description" required placeholder="e.g. Lab equipment" /></div>
+              <div class="form-row">
+                <div class="form-group"><label>Amount (PKR)</label><input name="amount" type="number" min="0" required /></div>
+                <div class="form-group"><label>Receipt / image URL</label><input name="imageURL" placeholder="https://..." /></div>
+              </div>
+              <button type="submit" class="btn btn-primary">Submit Bill</button>
+            </form>
+            <div id="my-bills" style="margin-top:1rem;"></div>
+          </div>`;
+      }
+
+      renderShell(`${tabsHtml(tabs, activeTab)}${body}`);
+      bindTabs(renderTeacher);
+      bindProfileForm();
+      bindTeacherHandlers();
+      if (activeTab === "profile") {
+        bindLeaveForm(renderTeacher);
+        const formBill = document.getElementById("form-bill");
+        if (formBill) formBill.onsubmit = async (e) => {
+          e.preventDefault();
+          const fd = new FormData(formBill);
+          try {
+            const id = pushId("bills");
+            await dbSet(`bills/${id}`, {
+              by: profile.uid, byName: profile.name,
+              description: fd.get("description").trim(),
+              amount: Number(fd.get("amount")),
+              imageURL: (fd.get("imageURL")||"").trim(),
+              status: "pending", ts: Date.now()
+            });
+            toast("Bill submitted", "success");
+            renderTeacher();
+          } catch (err) { toast("Failed: " + (err.message||err.code), "error"); }
+        };
+        const bills = await dbGet("bills") || {};
+        const mine = Object.entries(bills).filter(([_,b]) => b.by === profile.uid);
+        const box = document.getElementById("my-bills");
+        if (box) box.innerHTML = mine.length ? mine.map(([id,b]) => `
+          <div class="att-row" style="margin-bottom:0.35rem;">
+            <span>${esc(b.description)} — ${Number(b.amount).toLocaleString()} PKR
+              <span class="badge ${b.status==="pending"?"badge-warning":"badge-success"}">${esc(b.status)}</span>
+            </span>
+            ${b.status==="pending" ? `<button class="btn btn-success btn-sm" data-pay-bill="${esc(id)}">Mark Paid</button>` : ""}
+          </div>`).join("") : `<div class="empty" style="padding:0.5rem;">No bills yet</div>`;
+        document.querySelectorAll("[data-pay-bill]").forEach(btn => {
+          btn.onclick = async () => {
+            await dbRemove(`bills/${btn.dataset.payBill}`);
+            toast("Bill resolved", "success");
+            renderTeacher();
+          };
+        });
+      }
+    }
+
+    async function teacherDashHtml() {
+      if (!profile.department) return `<div class="card"><div class="empty">No department assigned.</div></div>`;
+      const tt = await dbGet(`timetable/${profile.department}`) || {};
+      const today = dayName();
+      const slots = Object.entries(tt[today] || {}).filter(([_,s]) => s.teacherId === profile.uid)
+        .sort((a,b) => timeToMin(a[1].start) - timeToMin(b[1].start));
+
+      const now = nowMinutes();
+      let current = null, upcoming = null;
+      for (const [sid, s] of slots) {
+        const start = timeToMin(s.start);
+        const end = timeToMin(s.end);
+        if (now >= start && now < end) current = { sid, ...s };
+        else if (now < start && (!upcoming || start < timeToMin(upcoming.start))) upcoming = { sid, ...s };
+      }
+
+      // 10-min prep notification
+      let prepAlert = "";
+      if (upcoming) {
+        const minsLeft = timeToMin(upcoming.start) - now;
+        if (minsLeft > 0 && minsLeft <= 10) {
+          prepAlert = `<div class="alert alert-info">📚 Prep for class: <strong>${esc(upcoming.subject)}</strong> starts in ${minsLeft} min (${fmtTime(upcoming.start)}).</div>`;
+        }
+      }
+
+      return `
+        ${prepAlert}
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-title">Current Class</div>
+            ${current ? `
+              <div class="tt-slot current">
+                <div class="tt-time">${fmtTime(current.start)} – ${fmtTime(current.end)}</div>
+                <div class="tt-subject">${esc(current.subject)}</div>
+                <div class="tt-meta">${esc(current.room||"")} · Batch: ${esc(current.batchName||current.batch||"")}</div>
+              </div>
+              <button class="btn btn-success" style="margin-top:0.75rem;" data-take-att="${esc(current.sid)}" data-batch="${esc(current.batch||'')}" data-subject="${esc(current.subject)}">Take Attendance Now</button>
+            ` : `<div class="empty">No class in progress</div>`}
+          </div>
+          <div class="card">
+            <div class="card-title">Upcoming Today</div>
+            ${upcoming ? `
+              <div class="tt-slot upcoming">
+                <div class="tt-time">${fmtTime(upcoming.start)} – ${fmtTime(upcoming.end)}</div>
+                <div class="tt-subject">${esc(upcoming.subject)}</div>
+                <div class="tt-meta">${esc(upcoming.room||"")}</div>
+              </div>
+            ` : `<div class="empty">No more classes today</div>`}
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Today's Schedule</div>
+          <div class="tt-grid">
+            ${slots.map(([sid,s]) => {
+              const start = timeToMin(s.start), end = timeToMin(s.end);
+              let cls = "";
+              if (now >= start && now < end) cls = "current";
+              else if (now < start) cls = "upcoming";
+              return `<div class="tt-slot ${cls}">
+                <div class="tt-time">${fmtTime(s.start)} – ${fmtTime(s.end)}</div>
+                <div class="tt-subject">${esc(s.subject)}</div>
+                <div class="tt-meta">${esc(s.room||"")} · ${esc(s.batchName||"")}</div>
+              </div>`;
+            }).join("") || `<div class="empty">No classes scheduled today</div>`}
+          </div>
+        </div>
+        ${await (async () => {
+          // Teachers who missed >3 classes (not on leave)
+          const missed = await dbGet("missedClasses") || {};
+          const alerts = Object.entries(missed)
+            .filter(([_,m]) => (m.count||0) > 3 && m.teacherId !== profile.uid)
+            .map(([_,m]) => `<div class="alert alert-warning">${ICONS.alert} <strong>${esc(m.teacherName)}</strong> has missed ${m.count} classes.</div>`)
+            .join("");
+          return alerts + await calendarWidgetHtml();
+        })()}
+      `;
+    }
+
+    async function teacherAttHtml() {
+      // List today's classes for this teacher so they can pick one
+      if (!profile.department) return `<div class="card"><div class="empty">No department</div></div>`;
+      const tt = await dbGet(`timetable/${profile.department}`) || {};
+      const today = dayName();
+      const slots = Object.entries(tt[today] || {}).filter(([_,s]) => s.teacherId === profile.uid);
+
+      // Check if coming from "Take Attendance Now"
+      const params = window.__attParams;
+      if (params) {
+        window.__attParams = null;
+        return await buildAttendanceForm(params.sid, params.batch, params.subject);
+      }
+
+      if (!slots.length) return `<div class="card"><div class="empty">No classes today. Attendance can only be taken for today's scheduled classes.</div></div>`;
+
+      return `
+        <div class="card">
+          <div class="card-title">Select Class for Attendance (${today})</div>
+          <div class="tt-grid">
+            ${slots.map(([sid, s]) => `
+              <div class="tt-slot">
+                <div class="tt-time">${fmtTime(s.start)} – ${fmtTime(s.end)}</div>
+                <div class="tt-subject">${esc(s.subject)}</div>
+                <div class="tt-meta">${esc(s.batchName||s.batch||"")}</div>
+                <button class="btn btn-success btn-sm" style="margin-top:0.5rem;" data-take-att="${esc(sid)}" data-batch="${esc(s.batch||'')}" data-subject="${esc(s.subject)}">Take Attendance</button>
+              </div>
+            `).join("")}
+          </div>
+        </div>
+      `;
+    }
+
+    async function buildAttendanceForm(slotId, batchId, subject) {
+      const date = todayStr();
+      const attKey = `${profile.department}_${slotId}_${date}`;
+      const existing = await dbGet(`attendance/${attKey}`);
+
+      if (existing && existing.locked) {
+        const lockedAt = existing.lockedAt || existing.submittedAt;
+        return `<div class="card">
+          <div class="alert alert-warning">This attendance was submitted and locked at ${fmtDate(lockedAt)} ${new Date(lockedAt).toLocaleTimeString()}. It can no longer be edited.</div>
+          <div class="card-title">${esc(subject)} · ${date}</div>
+          <div class="att-list">
+            ${Object.entries(existing.records||{}).map(([uid, rec]) => `
+              <div class="att-row ${rec.present ? 'present' : 'absent'}">
+                <span>${esc(rec.name||uid)}</span>
+                <span class="badge ${rec.present ? 'badge-success' : 'badge-danger'}">${rec.present ? 'Present' : 'Absent'}</span>
+              </div>
+            `).join("")}
+          </div>
+        </div>`;
+      }
+
+      // Load students of batch
+      let studentIds = [];
+      if (batchId && profile.department) {
+        const idx = await dbGet(`deptStudents/${profile.department}/${batchId}`) || {};
+        studentIds = Object.keys(idx);
+      }
+      const students = [];
+      for (const uid of studentIds) {
+        const u = await dbGet(`users/${uid}`);
+        if (u) {
+          const onLeave = await isOnApprovedLeave(uid, date);
+          students.push({ uid, name: u.name, email: u.email, onLeave });
+        }
+      }
+      students.sort((a,b) => a.name.localeCompare(b.name));
+
+      if (!students.length) {
+        return `<div class="card"><div class="empty">No students found in this batch. Ensure students are invited with the correct batch.</div></div>`;
+      }
+
+      const prev = existing?.records || {};
+      return `
+        <div class="card">
+          <div class="card-title">Attendance — ${esc(subject)} · ${date}</div>
+          <div class="alert alert-info">Locks 15 min after submit. Students on approved leave are auto-marked Leave.</div>
+          <div class="att-list" id="att-list">
+            ${students.map(s => {
+              const was = prev[s.uid];
+              const onLeave = s.onLeave;
+              const present = onLeave ? true : (was ? was.present : true);
+              const leaveFlag = onLeave || (was && was.leave);
+              return `
+                <div class="att-row ${leaveFlag ? 'present' : (present ? 'present' : 'absent')}" data-uid="${esc(s.uid)}" data-name="${esc(s.name)}" data-leave="${leaveFlag ? '1' : '0'}">
+                  <span>${esc(s.name)}${leaveFlag ? ' <span class="badge badge-info">Leave</span>' : ''}</span>
+                  ${leaveFlag ? `<span class="badge badge-info">On Leave</span>` : `
+                  <div class="att-toggle">
+                    <button class="btn btn-sm ${present ? 'btn-success' : 'btn-outline'}" data-p="1">Present</button>
+                    <button class="btn btn-sm ${!present ? 'btn-danger' : 'btn-outline'}" data-p="0">Absent</button>
+                  </div>`}
+                </div>
+              `;
+            }).join("")}
+          </div>
+          <button class="btn btn-primary" style="margin-top:1rem;" id="btn-submit-att"
+            data-key="${esc(attKey)}" data-slot="${esc(slotId)}" data-batch="${esc(batchId)}" data-subject="${esc(subject)}">
+            Submit Attendance
+          </button>
+        </div>
+      `;
+    }
+
+    async function teacherMarksHtml() {
+      const batches = await dbGet("batches") || {};
+      const myBatches = Object.entries(batches).filter(([_,b]) => b.department === profile.department);
+      const batchOpts = myBatches.map(([id,b]) => `<option value="${esc(id)}">${esc(b.name)}</option>`).join("");
+
+      return `
+        <div class="card">
+          <div class="card-title">${ICONS.book} Upload Marks</div>
+          <div class="alert alert-info">Scheme: Midterm 30 + Final 50 + Attendance 10 (auto from %) + Presentation 10 = 100</div>
+          <form id="form-marks-select">
+            <div class="form-row">
+              <div class="form-group"><label>Batch</label><select name="batch" required><option value="">Select…</option>${batchOpts}</select></div>
+              <div class="form-group"><label>Subject</label><input name="subject" required placeholder="e.g. Literary Theory" /></div>
+            </div>
+            <button type="submit" class="btn btn-primary">Load Students</button>
+          </form>
+        </div>
+        <div id="marks-form-area"></div>
+      `;
+    }
+
+    async function teacherAnnHtml() {
+      const anns = await dbGet("announcements") || {};
+      const items = Object.entries(anns)
+        .filter(([_,a]) => a.department === profile.department || a.by === profile.uid)
+        .sort((a,b) => (b[1].ts||0)-(a[1].ts||0))
+        .map(([id,a]) => `
+          <div class="ann-item">
+            <div class="ann-meta">${esc(a.byName||"")} · ${fmtDate(a.ts)}</div>
+            <div class="ann-body">${esc(a.text)}</div>
+            ${a.by === profile.uid ? `<button class="btn btn-danger btn-sm" data-del-ann="${esc(id)}">Delete</button>` : ""}
+          </div>
+        `).join("") || `<div class="empty">No announcements</div>`;
+      return `
+        <div class="card">
+          <div class="card-title">Post Announcement (your department only)</div>
+          <form id="form-tann">
+            <div class="form-group"><label>Message</label><textarea name="text" rows="3" required></textarea></div>
+            <button type="submit" class="btn btn-primary">Post</button>
+          </form>
+        </div>
+        <div class="card"><div class="card-title">Department Announcements</div>${items}</div>
+      `;
+    }
+
+    function bindTeacherHandlers() {
+      document.querySelectorAll("[data-take-att]").forEach(btn => {
+        btn.onclick = async () => {
+          window.__attParams = {
+            sid: btn.dataset.takeAtt,
+            batch: btn.dataset.batch,
+            subject: btn.dataset.subject
+          };
+          activeTab = "attendance";
+          renderTeacher();
+        };
+      });
+
+      // Attendance toggles
+      document.querySelectorAll(".att-row .att-toggle button").forEach(btn => {
+        btn.onclick = () => {
+          const row = btn.closest(".att-row");
+          const present = btn.dataset.p === "1";
+          row.classList.toggle("present", present);
+          row.classList.toggle("absent", !present);
+          row.querySelectorAll("button").forEach(b => {
+            b.className = "btn btn-sm btn-outline";
+            if ((b.dataset.p === "1" && present) || (b.dataset.p === "0" && !present)) {
+              b.className = `btn btn-sm ${present ? "btn-success" : "btn-danger"}`;
+            }
+          });
+        };
+      });
+
+      const submitAtt = document.getElementById("btn-submit-att");
+      if (submitAtt) submitAtt.onclick = async () => {
+        const key = submitAtt.dataset.key;
+        const subject = submitAtt.dataset.subject;
+        const records = {};
+        document.querySelectorAll("#att-list .att-row").forEach(row => {
+          const onLeave = row.dataset.leave === "1";
+          records[row.dataset.uid] = {
+            name: row.dataset.name,
+            present: onLeave || row.classList.contains("present"),
+            leave: onLeave
+          };
+        });
+        const data = {
+          teacherId: profile.uid,
+          teacherName: profile.name,
+          department: profile.department,
+          slotId: submitAtt.dataset.slot,
+          batch: submitAtt.dataset.batch,
+          subject,
+          date: todayStr(),
+          submittedAt: Date.now(),
+          lockedAt: Date.now() + 15 * 60 * 1000,
+          locked: false,
+          records
+        };
+        await dbSet(`attendance/${key}`, data);
+        setTimeout(async () => {
+          try { await dbUpdate(`attendance/${key}`, { locked: true }); } catch(_){}
+        }, 15 * 60 * 1000);
+        // Per-subject attendance (leave counts as present)
+        const subKey = subject.replace(/[.#$/[\]]/g, "_");
+        for (const [uid, rec] of Object.entries(records)) {
+          const path = `subjectAtt/${uid}/${subKey}`;
+          const prev = await dbGet(path) || { present: 0, total: 0, subject };
+          prev.subject = subject;
+          prev.total = (prev.total || 0) + 1;
+          if (rec.present || rec.leave) prev.present = (prev.present || 0) + 1;
+          await dbSet(path, prev);
+        }
+        await dbSet(`attendanceLog/${todayStr()}/${key}`, {
+          teacherId: profile.uid,
+          teacherName: profile.name,
+          subject,
+          department: profile.department,
+          ts: Date.now()
+        });
+        toast("Attendance submitted. Locks in 15 minutes.", "success");
+        activeTab = "dashboard";
+        renderTeacher();
+      };
+
+      // Marks form — Mid 30 + Final 50 + Att 10 (auto) + Presentation 10
+      const formMS = document.getElementById("form-marks-select");
+      if (formMS) formMS.onsubmit = async (e) => {
+        e.preventDefault();
+        const fd = new FormData(formMS);
+        const batchId = fd.get("batch");
+        const subject = fd.get("subject").trim();
+        const subKey = subject.replace(/[.#$/[\]]/g, "_");
+        const idx = await dbGet(`deptStudents/${profile.department}/${batchId}`) || {};
+        const students = [];
+        for (const uid of Object.keys(idx)) {
+          const u = await dbGet(`users/${uid}`);
+          if (!u) continue;
+          const sa = await dbGet(`subjectAtt/${uid}/${subKey}`) || {};
+          const pct = sa.total ? (sa.present / sa.total) * 100 : 0;
+          const attAuto = Math.round((pct / 100) * 10 * 10) / 10; // 0–10
+          students.push({ uid, name: u.name, attAuto, attPct: pct });
+        }
+        students.sort((a,b) => a.name.localeCompare(b.name));
+        const area = document.getElementById("marks-form-area");
+        if (!students.length) {
+          area.innerHTML = `<div class="card"><div class="empty">No students in batch</div></div>`;
+          return;
+        }
+        area.innerHTML = `
+          <div class="card">
+            <div class="card-title">Enter marks — ${esc(subject)}</div>
+            <div class="alert alert-info">Attendance marks are auto-filled from subject attendance % (out of 10).</div>
+            <div class="table-wrap"><table>
+              <thead><tr><th>Student</th><th>Mid (0–30)</th><th>Final (0–50)</th><th>Att (auto)</th><th>Pres (0–10)</th></tr></thead>
+              <tbody id="marks-list">
+                ${students.map(s => `
+                  <tr data-uid="${esc(s.uid)}" data-name="${esc(s.name)}" data-att="${s.attAuto}">
+                    <td>${esc(s.name)}<div style="font-size:0.75rem;color:var(--text-muted);">${s.attPct.toFixed(0)}% att</div></td>
+                    <td><input type="number" min="0" max="30" step="0.5" style="width:70px;" data-mid placeholder="0" /></td>
+                    <td><input type="number" min="0" max="50" step="0.5" style="width:70px;" data-final placeholder="0" /></td>
+                    <td><strong>${s.attAuto}</strong>/10</td>
+                    <td><input type="number" min="0" max="10" step="0.5" style="width:70px;" data-pres placeholder="0" /></td>
+                  </tr>
+                `).join("")}
+              </tbody>
+            </table></div>
+            <button class="btn btn-primary" style="margin-top:1rem;" id="btn-save-marks" data-subject="${esc(subject)}">Save Marks</button>
+          </div>
+        `;
+        document.getElementById("btn-save-marks").onclick = async () => {
+          const subj = document.getElementById("btn-save-marks").dataset.subject;
+          let saved = 0;
+          for (const row of document.querySelectorAll("#marks-list tr[data-uid]")) {
+            const midEl = row.querySelector("[data-mid]");
+            const finEl = row.querySelector("[data-final]");
+            const presEl = row.querySelector("[data-pres]");
+            if (midEl.value === "" && finEl.value === "" && presEl.value === "") continue;
+            const mid = Number(midEl.value || 0);
+            const fin = Number(finEl.value || 0);
+            const pres = Number(presEl.value || 0);
+            const att = Number(row.dataset.att || 0);
+            const total100 = Math.round((mid + fin + att + pres) * 10) / 10;
+            const uid = row.dataset.uid;
+            await dbSet(`marks/${uid}/${subj.replace(/[.#$/[\]]/g,"_")}`, {
+              subject: subj,
+              midterm: mid,
+              final: fin,
+              attendance: att,
+              presentation: pres,
+              total100,
+              score: total100,
+              total: 100,
+              grade: letterGrade(total100),
+              gp: gradePoint(total100),
+              by: profile.uid,
+              ts: Date.now()
+            });
+            // Soft-update student GPA from all subjects
+            const allM = await dbGet(`marks/${uid}`) || {};
+            const gps = Object.values(allM).map(x => gradePoint(x.total100 ?? x.score ?? 0));
+            if (gps.length) {
+              const gpa = Math.round((gps.reduce((a,b)=>a+b,0) / gps.length) * 100) / 100;
+              const prev = (await dbGet(`users/${uid}`)) || {};
+              let termBacks = prev.termBacks || 0;
+              // Detect new term-back if GPA drops below 1.7 (only bump if crossing)
+              if (gpa < 1.7 && (prev.gpa || 0) >= 1.7) termBacks = termBacks + 1;
+              await dbUpdate(`users/${uid}`, { gpa, termBacks });
+            }
+            saved++;
+          }
+          toast(saved ? `Saved marks for ${saved} student(s)` : "No marks entered", saved ? "success" : "error");
+        };
+      };
+
+      const formTann = document.getElementById("form-tann");
+      if (formTann) formTann.onsubmit = async (e) => {
+        e.preventDefault();
+        const fd = new FormData(formTann);
+        const id = pushId("announcements");
+        await dbSet(`announcements/${id}`, {
+          text: fd.get("text").trim(),
+          department: profile.department,
+          by: profile.uid,
+          byName: profile.name,
+          ts: Date.now()
+        });
+        toast("Posted", "success");
+        renderTeacher();
+      };
+
+      document.querySelectorAll("[data-del-ann]").forEach(b => {
+        b.onclick = async () => {
+          await dbRemove(`announcements/${b.dataset.delAnn}`);
+          toast("Deleted", "success");
+          renderTeacher();
+        };
+      });
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  CLERK DASHBOARD
+    // ═══════════════════════════════════════════════════════════
+    async function renderClerk() {
+      clearListeners();
+      const tabs = [
+        { id: "dashboard", label: "Dashboard" },
+        { id: "timetable", label: "Timetable" },
+        { id: "attendance", label: "Monitor Attendance" },
+        { id: "reports", label: "Reports" }
+      ];
+      if (!tabs.find(t => t.id === activeTab)) activeTab = "dashboard";
+
+      let body = "";
+      if (activeTab === "dashboard") {
+        body = `<div class="card"><div class="card-title">Clerk Dashboard</div>
+          <p style="color:var(--text-muted);">Manage timetables, monitor attendance, and generate reports.</p>
+          <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:1rem;">
+            <button class="btn btn-primary btn-sm" data-goto="timetable">Edit Timetable</button>
+            <button class="btn btn-outline btn-sm" data-goto="attendance">View Attendance</button>
+            <button class="btn btn-outline btn-sm" data-goto="reports">Reports</button>
+          </div>
+        </div>
+        ${leaveFormHtml("clerk")}
+        ${await calendarWidgetHtml()}`;
+      } else if (activeTab === "timetable") {
+        body = await clerkTimetableHtml();
+      } else if (activeTab === "attendance") {
+        body = await clerkAttHtml();
+      } else if (activeTab === "reports") {
+        body = await clerkReportsHtml();
+      }
+
+      renderShell(`${tabsHtml(tabs, activeTab)}${body}`);
+      bindTabs(renderClerk);
+      document.querySelectorAll("[data-goto]").forEach(b => {
+        b.onclick = () => { activeTab = b.dataset.goto; renderClerk(); };
+      });
+      bindClerkHandlers();
+      if (activeTab === "dashboard") bindLeaveForm(renderClerk);
+    }
+
+    async function clerkTimetableHtml() {
+      const depts = await dbGet("departments") || {};
+      const deptOpts = Object.entries(depts).map(([id,d]) => `<option value="${esc(id)}">${esc(d.name)}</option>`).join("");
+      const teachers = await dbGet("users") || {};
+      const teacherList = Object.entries(teachers).filter(([_,u]) => u.role === "teacher");
+      const batches = await dbGet("batches") || {};
+
+      return `
+        <div class="card">
+          <div class="card-title">Add / Update Timetable Slot</div>
+          <form id="form-tt">
+            <div class="form-row">
+              <div class="form-group"><label>Department</label><select name="department" required id="tt-dept"><option value="">Select…</option>${deptOpts}</select></div>
+              <div class="form-group"><label>Day</label><select name="day" required>${DAYS.map(d=>`<option>${d}</option>`).join("")}</select></div>
+            </div>
+            <div class="form-row">
+              <div class="form-group"><label>Start Time</label><input name="start" type="time" required /></div>
+              <div class="form-group"><label>End Time</label><input name="end" type="time" required /></div>
+            </div>
+            <div class="form-group"><label>Subject</label><input name="subject" required /></div>
+            <div class="form-group">
+              <label>Teacher (type @ to search)</label>
+              <input name="teacherSearch" id="tt-teacher-search" placeholder="@ name or email" autocomplete="off" />
+              <input type="hidden" name="teacherId" id="tt-teacher-id" />
+              <input type="hidden" name="teacherName" id="tt-teacher-name" />
+              <div id="tt-teacher-results" style="max-height:140px;overflow-y:auto;margin-top:0.3rem;"></div>
+            </div>
+            <div class="form-row">
+              <div class="form-group"><label>Batch</label>
+                <select name="batch" id="tt-batch"><option value="">—</option></select>
+              </div>
+              <div class="form-group"><label>Room</label><input name="room" placeholder="e.g. R-12" /></div>
+            </div>
+            <button type="submit" class="btn btn-primary">Save Slot</button>
+          </form>
+        </div>
+        <div class="card">
+          <div class="card-title">Existing Slots</div>
+          <div class="form-group"><label>Filter Department</label>
+            <select id="tt-filter-dept"><option value="">Select department to view…</option>${deptOpts}</select>
+          </div>
+          <div id="tt-existing"></div>
+        </div>
+      `;
+    }
+
+    async function clerkAttHtml() {
+      const depts = await dbGet("departments") || {};
+      const deptOpts = Object.entries(depts).map(([id,d]) => `<option value="${esc(id)}">${esc(d.name)}</option>`).join("");
+      return `
+        <div class="card">
+          <div class="card-title">Monitor Attendance</div>
+          <div class="form-row">
+            <div class="form-group"><label>Department</label><select id="att-mon-dept"><option value="">Select…</option>${deptOpts}</select></div>
+            <div class="form-group"><label>Date</label><input type="date" id="att-mon-date" value="${todayStr()}" /></div>
+          </div>
+          <button class="btn btn-primary" id="btn-load-att">Load</button>
+          <div id="att-mon-results" style="margin-top:1rem;"></div>
+        </div>
+      `;
+    }
+
+    async function clerkReportsHtml() {
+      return `
+        <div class="card">
+          <div class="card-title">Quick Reports</div>
+          <p style="color:var(--text-muted);font-size:0.9rem;">Select department and generate a summary of today's attendance submissions.</p>
+          <button class="btn btn-primary" id="btn-today-report">Today's Attendance Report</button>
+          <div id="report-area" style="margin-top:1rem;"></div>
+        </div>
+      `;
+    }
+
+    function bindClerkHandlers() {
+      // Teacher @ mention search
+      const searchInp = document.getElementById("tt-teacher-search");
+      if (searchInp) {
+        let allTeachers = null;
+        searchInp.oninput = async () => {
+          const q = searchInp.value.replace(/^@/, "").toLowerCase().trim();
+          const box = document.getElementById("tt-teacher-results");
+          if (q.length < 1) { box.innerHTML = ""; return; }
+          if (!allTeachers) {
+            const users = await dbGet("users") || {};
+            allTeachers = Object.entries(users).filter(([_,u]) => u.role === "teacher");
+          }
+          const matches = allTeachers.filter(([_,u]) =>
+            (u.name||"").toLowerCase().includes(q) || (u.email||"").toLowerCase().includes(q)
+          ).slice(0, 8);
+          box.innerHTML = matches.map(([uid,u]) => `
+            <div style="padding:0.4rem 0.6rem;cursor:pointer;border-radius:6px;background:var(--surface2);margin-bottom:0.25rem;"
+              data-tid="${esc(uid)}" data-tname="${esc(u.name)}">
+              ${esc(u.name)} <span style="color:var(--text-muted);font-size:0.8rem;">${esc(u.email)}</span>
+            </div>
+          `).join("") || `<div style="font-size:0.85rem;color:var(--text-muted);">No match</div>`;
+          box.querySelectorAll("[data-tid]").forEach(el => {
+            el.onclick = () => {
+              document.getElementById("tt-teacher-id").value = el.dataset.tid;
+              document.getElementById("tt-teacher-name").value = el.dataset.tname;
+              searchInp.value = "@" + el.dataset.tname;
+              box.innerHTML = "";
+            };
+          });
+        };
+      }
+
+      // Load batches when dept changes
+      const deptSel = document.getElementById("tt-dept");
+      if (deptSel) deptSel.onchange = async () => {
+        const batches = await dbGet("batches") || {};
+        const opts = Object.entries(batches)
+          .filter(([_,b]) => b.department === deptSel.value)
+          .map(([id,b]) => `<option value="${esc(id)}">${esc(b.name)}</option>`).join("");
+        document.getElementById("tt-batch").innerHTML = `<option value="">—</option>${opts}`;
+      };
+
+      const formTt = document.getElementById("form-tt");
+      if (formTt) formTt.onsubmit = async (e) => {
+        e.preventDefault();
+        const fd = new FormData(formTt);
+        const dept = fd.get("department");
+        const day = fd.get("day");
+        const teacherId = fd.get("teacherId");
+        if (!teacherId) { toast("Please select a teacher via @ search", "error"); return; }
+        const batchId = fd.get("batch");
+        let batchName = "";
+        if (batchId) {
+          const b = await dbGet(`batches/${batchId}`);
+          batchName = b?.name || "";
+        }
+        const slotId = pushId(`timetable/${dept}/${day}`);
+        await dbSet(`timetable/${dept}/${day}/${slotId}`, {
+          start: fd.get("start"),
+          end: fd.get("end"),
+          subject: fd.get("subject").trim(),
+          teacherId,
+          teacherName: fd.get("teacherName"),
+          batch: batchId,
+          batchName,
+          room: fd.get("room").trim(),
+          createdAt: Date.now()
+        });
+        toast("Timetable slot saved", "success");
+        formTt.reset();
+      };
+
+      const filterDept = document.getElementById("tt-filter-dept");
+      if (filterDept) filterDept.onchange = async () => {
+        const dept = filterDept.value;
+        const box = document.getElementById("tt-existing");
+        if (!dept) { box.innerHTML = ""; return; }
+        const tt = await dbGet(`timetable/${dept}`) || {};
+        let html = "";
+        for (const day of DAYS) {
+          const slots = Object.entries(tt[day]||{});
+          if (!slots.length) continue;
+          html += `<div style="margin-bottom:1rem;"><strong>${day}</strong>`;
+          for (const [sid, s] of slots.sort((a,b)=>timeToMin(a[1].start)-timeToMin(b[1].start))) {
+            html += `<div class="tt-slot" style="margin-top:0.35rem;">
+              <div class="tt-time">${fmtTime(s.start)} – ${fmtTime(s.end)}</div>
+              <div class="tt-subject">${esc(s.subject)} · ${esc(s.teacherName||"")}</div>
+              <div class="tt-meta">${esc(s.batchName||"")} · ${esc(s.room||"")}</div>
+              <button class="btn btn-danger btn-sm" style="margin-top:0.3rem;" data-del-slot="${esc(dept)}|${esc(day)}|${esc(sid)}">Delete</button>
+            </div>`;
+          }
+          html += `</div>`;
+        }
+        box.innerHTML = html || `<div class="empty">No slots</div>`;
+        box.querySelectorAll("[data-del-slot]").forEach(btn => {
+          btn.onclick = async () => {
+            if (!confirm("Delete this slot?")) return;
+            const [d, day, sid] = btn.dataset.delSlot.split("|");
+            await dbRemove(`timetable/${d}/${day}/${sid}`);
+            toast("Deleted", "success");
+            filterDept.onchange();
+          };
+        });
+      };
+
+      const btnLoadAtt = document.getElementById("btn-load-att");
+      if (btnLoadAtt) btnLoadAtt.onclick = async () => {
+        const dept = document.getElementById("att-mon-dept").value;
+        const date = document.getElementById("att-mon-date").value;
+        const box = document.getElementById("att-mon-results");
+        if (!dept || !date) { toast("Select department and date", "error"); return; }
+        const all = await dbGet("attendance") || {};
+        const filtered = Object.entries(all).filter(([k,v]) =>
+          v.department === dept && v.date === date
+        );
+        if (!filtered.length) {
+          box.innerHTML = `<div class="empty">No attendance records</div>`;
+          return;
+        }
+        box.innerHTML = filtered.map(([k, v]) => `
+          <div class="card">
+            <div class="card-title">${esc(v.subject)} · ${esc(v.teacherName||"")} ${v.locked ? '<span class="badge badge-warning">Locked</span>' : ''}</div>
+            <div class="att-list">
+              ${Object.entries(v.records||{}).map(([uid,r]) => `
+                <div class="att-row ${r.present?'present':'absent'}">
+                  <span>${esc(r.name)}</span>
+                  <span class="badge ${r.present?'badge-success':'badge-danger'}">${r.present?'P':'A'}</span>
+                </div>
+              `).join("")}
+            </div>
+          </div>
+        `).join("");
+      };
+
+      const btnReport = document.getElementById("btn-today-report");
+      if (btnReport) btnReport.onclick = async () => {
+        const log = await dbGet(`attendanceLog/${todayStr()}`) || {};
+        const area = document.getElementById("report-area");
+        const rows = Object.values(log).map(l => `
+          <tr>
+            <td>${esc(l.teacherName)}</td>
+            <td>${esc(l.subject)}</td>
+            <td>${esc(l.department)}</td>
+            <td>${new Date(l.ts).toLocaleTimeString()}</td>
+          </tr>
+        `).join("") || `<tr><td colspan="4" class="empty">No submissions today</td></tr>`;
+        area.innerHTML = `<div class="table-wrap"><table>
+          <thead><tr><th>Teacher</th><th>Subject</th><th>Dept</th><th>Time</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table></div>`;
+      };
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  FINANCE WING
+    // ═══════════════════════════════════════════════════════════
+    async function renderFinance() {
+      clearListeners();
+      const users = await dbGet("users") || {};
+      const students = Object.entries(users).filter(([_,u]) => u.role === "student");
+      let totalDue = 0, totalPaid = 0, withDues = 0;
+      const rows = students.map(([uid, u]) => {
+        const rem = (u.feesTotal||0) - (u.feesPaid||0);
+        totalDue += u.feesTotal||0;
+        totalPaid += u.feesPaid||0;
+        if (rem > 0) withDues++;
+        return `
+          <tr>
+            <td>${esc(u.name)}</td>
+            <td>${esc(u.email)}</td>
+            <td>${esc(u.department||"—")}</td>
+            <td>${(u.feesTotal||0).toLocaleString()}</td>
+            <td>${(u.feesPaid||0).toLocaleString()}</td>
+            <td class="${rem>0?'badge-warning':''}">${rem.toLocaleString()}</td>
+            <td>
+              <button class="btn btn-sm btn-outline" data-pay="${esc(uid)}" data-name="${esc(u.name)}" data-paid="${u.feesPaid||0}" data-total="${u.feesTotal||0}">Update Paid</button>
+            </td>
+          </tr>
+        `;
+      }).join("") || `<tr><td colspan="7" class="empty">No students</td></tr>`;
+
+      const bills = await dbGet("bills") || {};
+      const pendingBills = Object.entries(bills).filter(([_,b]) => b.status === "pending");
+      const billRows = pendingBills.map(([id,b]) => `
+        <div class="att-row" style="margin-bottom:0.35rem;">
+          <span><strong>${esc(b.byName)}</strong> — ${esc(b.description)} · ${Number(b.amount).toLocaleString()} PKR
+            ${b.imageURL ? `<a href="${esc(b.imageURL)}" target="_blank" rel="noopener">Receipt</a>` : ""}
+          </span>
+          <button class="btn btn-success btn-sm" data-resolve-bill="${esc(id)}">Mark Paid</button>
+        </div>
+      `).join("") || `<div class="empty" style="padding:0.5rem;">No pending bills</div>`;
+
+      renderShell(`
+        <div class="grid-3">
+          <div class="stat-card"><div class="stat-value">${totalDue.toLocaleString()}</div><div class="stat-label">Total Fees (PKR)</div></div>
+          <div class="stat-card ok"><div class="stat-value">${totalPaid.toLocaleString()}</div><div class="stat-label">Collected</div></div>
+          <div class="stat-card ${withDues?'warn':''}"><div class="stat-value">${withDues}</div><div class="stat-label">Students with Dues</div></div>
+        </div>
+        <div class="card">
+          <div class="card-title">${ICONS.bill} Pending Bills (${pendingBills.length})</div>
+          ${billRows}
+        </div>
+        <div class="card">
+          <div class="card-title">${ICONS.money} Student Fees Ledger</div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Name</th><th>Email</th><th>Dept</th><th>Total</th><th>Paid</th><th>Remaining</th><th></th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table></div>
+        </div>
+        ${await calendarWidgetHtml()}
+      `);
+
+      document.querySelectorAll("[data-pay]").forEach(btn => {
+        btn.onclick = async () => {
+          const paid = prompt(`Update fees paid for ${btn.dataset.name} (current: ${btn.dataset.paid}):`, btn.dataset.paid);
+          if (paid == null) return;
+          const val = Number(paid);
+          if (isNaN(val) || val < 0) { toast("Invalid amount", "error"); return; }
+          await dbUpdate(`users/${btn.dataset.pay}`, { feesPaid: val });
+          toast("Updated", "success");
+          renderFinance();
+        };
+      });
+      document.querySelectorAll("[data-resolve-bill]").forEach(btn => {
+        btn.onclick = async () => {
+          await dbRemove(`bills/${btn.dataset.resolveBill}`);
+          toast("Bill marked paid & removed", "success");
+          renderFinance();
+        };
+      });
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  SHARED: Student + Batch management (Exam & Admission)
+    // ═══════════════════════════════════════════════════════════
+    async function studentMgmtHtml() {
+      const pending = await dbGet("pending") || {};
+      const users = await dbGet("users") || {};
+      const depts = await dbGet("departments") || {};
+      const batches = await dbGet("batches") || {};
+      const deptOpts = Object.entries(depts).map(([id,d]) => `<option value="${esc(id)}">${esc(d.name)}</option>`).join("");
+      const batchOpts = Object.entries(batches).map(([id,b]) =>
+        `<option value="${esc(id)}">${esc(b.name)} (${esc(depts[b.department]?.name || b.department || "")})</option>`
+      ).join("");
+
+      const pendingRows = Object.entries(pending)
+        .filter(([_,p]) => p.role === "student")
+        .map(([ek, p]) => `
+          <tr>
+            <td>${esc(p.name)}</td>
+            <td>${esc(ek.replace(/,/g,"."))}</td>
+            <td>${esc(depts[p.department]?.name || p.department || "—")}</td>
+            <td>${esc(batches[p.batch]?.name || p.batch || "—")}</td>
+            <td><button class="btn btn-danger btn-sm" data-del-pending="${esc(ek)}">Remove</button></td>
+          </tr>
+        `).join("") || `<tr><td colspan="5" class="empty">No pending student invites</td></tr>`;
+
+      const studentRows = Object.entries(users)
+        .filter(([_,u]) => u.role === "student")
+        .map(([uid, u]) => `
+          <tr>
+            <td>${esc(u.name)}</td>
+            <td>${esc(u.email)}</td>
+            <td>${esc(depts[u.department]?.name || u.department || "—")}</td>
+            <td>${esc(batches[u.batch]?.name || u.batch || "—")}</td>
+            <td>${(u.feesTotal||0).toLocaleString()}</td>
+            <td><button class="btn btn-danger btn-sm" data-del-student="${esc(uid)}">Delete</button></td>
+          </tr>
+        `).join("") || `<tr><td colspan="6" class="empty">No students yet</td></tr>`;
+
+      const batchRows = Object.entries(batches).map(([id, b]) => `
+        <tr>
+          <td>${esc(b.name)}</td>
+          <td>${esc(depts[b.department]?.name || b.department || "—")}</td>
+          <td>${esc(b.year||"—")}</td>
+          <td><button class="btn btn-danger btn-sm" data-del-batch="${esc(id)}">Delete Batch</button></td>
+        </tr>
+      `).join("") || `<tr><td colspan="4" class="empty">No batches</td></tr>`;
+
+      return `
+        <div class="card">
+          <div class="card-title">Add Student (invite by email)</div>
+          <form id="form-invite-student">
+            <div class="form-row">
+              <div class="form-group"><label>Full Name</label><input name="name" required /></div>
+              <div class="form-group"><label>Email</label><input name="email" type="email" required /></div>
+            </div>
+            <div class="form-row">
+              <div class="form-group"><label>Department</label><select name="department" required><option value="">Select…</option>${deptOpts}</select></div>
+              <div class="form-group"><label>Batch</label><select name="batch" required><option value="">Select…</option>${batchOpts}</select></div>
+            </div>
+            <div class="form-group"><label>Fees Total (PKR)</label><input name="feesTotal" type="number" min="0" value="0" /></div>
+            <button type="submit" class="btn btn-primary">Invite Student</button>
+          </form>
+        </div>
+        <div class="card">
+          <div class="card-title">Pending Student Invitations</div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Name</th><th>Email</th><th>Dept</th><th>Batch</th><th></th></tr></thead>
+            <tbody>${pendingRows}</tbody>
+          </table></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Active Students</div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Name</th><th>Email</th><th>Dept</th><th>Batch</th><th>Fees Total</th><th></th></tr></thead>
+            <tbody>${studentRows}</tbody>
+          </table></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Batches</div>
+          <form id="form-batch-wing" style="margin-bottom:1rem;">
+            <div class="form-row">
+              <div class="form-group"><label>Batch Name</label><input name="name" required placeholder="e.g. BS English 2022-26" /></div>
+              <div class="form-group"><label>Department</label><select name="department" required><option value="">Select…</option>${deptOpts}</select></div>
+            </div>
+            <div class="form-group"><label>Year / Session</label><input name="year" placeholder="2022-26" /></div>
+            <button type="submit" class="btn btn-primary">Add Batch</button>
+          </form>
+          <div class="alert alert-warning">Deleting a batch removes its student index. Delete individual students separately if needed.</div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Name</th><th>Department</th><th>Year</th><th></th></tr></thead>
+            <tbody>${batchRows}</tbody>
+          </table></div>
+        </div>
+      `;
+    }
+
+    function bindStudentMgmtHandlers(rerender) {
+      const formS = document.getElementById("form-invite-student");
+      if (formS) formS.onsubmit = async (e) => {
+        e.preventDefault();
+        const fd = new FormData(formS);
+        const email = fd.get("email").toLowerCase().trim();
+        const emailKey = email.replace(/\./g, ",");
+        try {
+          await dbSet(`pending/${emailKey}`, {
+            name: fd.get("name").trim(),
+            role: "student",
+            department: fd.get("department") || "",
+            batch: fd.get("batch") || "",
+            feesTotal: Number(fd.get("feesTotal")||0),
+            invitedAt: Date.now()
+          });
+          toast("Student invitation created", "success");
+          rerender();
+        } catch (err) {
+          console.error(err);
+          toast("Failed: " + (err.message || err.code || "permission denied — update database rules"), "error");
+        }
+      };
+
+      document.querySelectorAll("[data-del-pending]").forEach(b => {
+        b.onclick = async () => {
+          if (!confirm("Remove this invitation?")) return;
+          await dbRemove(`pending/${b.dataset.delPending}`);
+          toast("Removed", "success");
+          rerender();
+        };
+      });
+
+      document.querySelectorAll("[data-del-student]").forEach(b => {
+        b.onclick = async () => {
+          if (!confirm("Permanently delete this student account?")) return;
+          const uid = b.dataset.delStudent;
+          try {
+            const u = await dbGet(`users/${uid}`);
+            if (u) {
+              const ek = (u.email||"").replace(/\./g, ",");
+              await dbRemove(`users/${uid}`);
+              if (ek) await dbRemove(`emails/${ek}`);
+              if (u.department && u.batch) await dbRemove(`deptStudents/${u.department}/${u.batch}/${uid}`);
+              await dbRemove(`marks/${uid}`);
+            }
+            toast("Student deleted", "success");
+            rerender();
+          } catch (err) {
+            toast("Delete failed: " + (err.message || err.code), "error");
+          }
+        };
+      });
+
+      const formB = document.getElementById("form-batch-wing");
+      if (formB) formB.onsubmit = async (e) => {
+        e.preventDefault();
+        const fd = new FormData(formB);
+        try {
+          const id = pushId("batches");
+          await dbSet(`batches/${id}`, {
+            name: fd.get("name").trim(),
+            department: fd.get("department"),
+            year: fd.get("year").trim(),
+            createdAt: Date.now()
+          });
+          toast("Batch added", "success");
+          rerender();
+        } catch (err) {
+          toast("Failed: " + (err.message || err.code), "error");
+        }
+      };
+
+      document.querySelectorAll("[data-del-batch]").forEach(b => {
+        b.onclick = async () => {
+          if (!confirm("Delete this batch and its student index?")) return;
+          const id = b.dataset.delBatch;
+          try {
+            const batch = await dbGet(`batches/${id}`);
+            if (batch?.department) await dbRemove(`deptStudents/${batch.department}/${id}`);
+            await dbRemove(`batches/${id}`);
+            toast("Batch deleted", "success");
+            rerender();
+          } catch (err) {
+            toast("Failed: " + (err.message || err.code), "error");
+          }
+        };
+      });
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  EXAM WING
+    // ═══════════════════════════════════════════════════════════
+    async function renderExam() {
+      clearListeners();
+      const tabs = [
+        { id: "dashboard", label: "Marks Ledger" },
+        { id: "students", label: "Students & Batches" }
+      ];
+      if (!tabs.find(t => t.id === activeTab)) activeTab = "dashboard";
+
+      let body = "";
+      if (activeTab === "students") {
+        body = await studentMgmtHtml();
+      } else {
+        const depts = await dbGet("departments") || {};
+        const batches = await dbGet("batches") || {};
+        const deptOpts = Object.entries(depts).map(([id,d]) => `<option value="${esc(id)}">${esc(d.name)}</option>`).join("");
+        body = `
+          <div class="card">
+            <div class="card-title">Marks Ledger</div>
+            <div class="form-row">
+              <div class="form-group"><label>Department</label><select id="exam-dept"><option value="">Select…</option>${deptOpts}</select></div>
+              <div class="form-group"><label>Batch</label><select id="exam-batch"><option value="">Select dept first</option></select></div>
+            </div>
+            <button class="btn btn-primary" id="btn-exam-load">Load Ledger</button>
+            <button class="btn btn-outline" id="btn-exam-print" style="margin-left:0.5rem;">Print</button>
+            <div id="exam-ledger" style="margin-top:1rem;"></div>
+          </div>
+        `;
+      }
+
+      renderShell(`${tabsHtml(tabs, activeTab)}${body}`);
+      bindTabs(renderExam);
+
+      if (activeTab === "students") {
+        bindStudentMgmtHandlers(renderExam);
+      } else {
+        const batches = await dbGet("batches") || {};
+        const examDept = document.getElementById("exam-dept");
+        if (examDept) examDept.onchange = async () => {
+          const dept = examDept.value;
+          const opts = Object.entries(batches)
+            .filter(([_,b]) => b.department === dept)
+            .map(([id,b]) => `<option value="${esc(id)}">${esc(b.name)}</option>`).join("");
+          document.getElementById("exam-batch").innerHTML = `<option value="">Select…</option>${opts}`;
+        };
+        const btnLoad = document.getElementById("btn-exam-load");
+        if (btnLoad) btnLoad.onclick = async () => {
+          const dept = document.getElementById("exam-dept").value;
+          const batch = document.getElementById("exam-batch").value;
+          if (!dept || !batch) { toast("Select department and batch", "error"); return; }
+          const idx = await dbGet(`deptStudents/${dept}/${batch}`) || {};
+          const students = [];
+          for (const uid of Object.keys(idx)) {
+            const u = await dbGet(`users/${uid}`);
+            const marks = await dbGet(`marks/${uid}`) || {};
+            if (u) students.push({ uid, name: u.name, email: u.email, gpa: u.gpa, marks });
+          }
+          students.sort((a,b) => a.name.localeCompare(b.name));
+          const subjects = new Set();
+          students.forEach(s => Object.values(s.marks).forEach(m => subjects.add(m.subject||"")));
+          const subList = [...subjects].filter(Boolean).sort();
+          let thead = `<th>Name</th><th>Email</th>` + subList.map(s => `<th>${esc(s)}</th>`).join("") + `<th>GPA</th>`;
+          let tbody = students.map(s => {
+            const cells = subList.map(sub => {
+              const m = Object.values(s.marks).find(x => x.subject === sub);
+              return `<td>${m ? m.score + "/" + (m.total||100) : "—"}</td>`;
+            }).join("");
+            return `<tr><td>${esc(s.name)}</td><td>${esc(s.email)}</td>${cells}<td>${s.gpa ? s.gpa.toFixed(2) : "—"}</td></tr>`;
+          }).join("") || `<tr><td colspan="${subList.length+3}" class="empty">No students</td></tr>`;
+          document.getElementById("exam-ledger").innerHTML = `
+            <div class="table-wrap"><table>
+              <thead><tr>${thead}</tr></thead>
+              <tbody>${tbody}</tbody>
+            </table></div>
+          `;
+        };
+        const btnPrint = document.getElementById("btn-exam-print");
+        if (btnPrint) btnPrint.onclick = () => window.print();
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  ADMISSION WING
+    // ═══════════════════════════════════════════════════════════
+    async function renderAdmission() {
+      clearListeners();
+      const tabs = [
+        { id: "students", label: "Students & Batches" },
+        { id: "dashboard", label: "Overview" }
+      ];
+      if (!tabs.find(t => t.id === activeTab)) activeTab = "students";
+
+      let body = "";
+      if (activeTab === "dashboard") {
+        const users = await dbGet("users") || {};
+        const batches = await dbGet("batches") || {};
+        const pending = await dbGet("pending") || {};
+        const students = Object.values(users).filter(u => u.role === "student");
+        const pendingStudents = Object.values(pending).filter(p => p.role === "student");
+        body = `
+          <div class="grid-3">
+            <div class="stat-card"><div class="stat-value">${students.length}</div><div class="stat-label">Active Students</div></div>
+            <div class="stat-card"><div class="stat-value">${pendingStudents.length}</div><div class="stat-label">Pending Invites</div></div>
+            <div class="stat-card"><div class="stat-value">${Object.keys(batches).length}</div><div class="stat-label">Batches</div></div>
+          </div>
+          <div class="card" style="margin-top:1rem;">
+            <div class="card-title">Admission Wing</div>
+            <p style="color:var(--text-muted);font-size:0.9rem;">Add and remove students, manage batches. Students sign in with the invited Google email.</p>
+            <button class="btn btn-primary" style="margin-top:0.75rem;" data-goto="students">Manage Students</button>
+          </div>
+        `;
+      } else {
+        body = await studentMgmtHtml();
+      }
+
+      renderShell(`${tabsHtml(tabs, activeTab)}${body}`);
+      bindTabs(renderAdmission);
+      document.querySelectorAll("[data-goto]").forEach(b => {
+        b.onclick = () => { activeTab = b.dataset.goto; renderAdmission(); };
+      });
+      if (activeTab === "students") bindStudentMgmtHandlers(renderAdmission);
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  PRO VICE CHANCELLOR
+    // ═══════════════════════════════════════════════════════════
+    async function renderPVC() {
+      clearListeners();
+      const log = await dbGet(`attendanceLog/${todayStr()}`) || {};
+      const filteredLog = [];
+      for (const l of Object.values(log)) {
+        if (l.teacherId && await isOnApprovedLeave(l.teacherId)) continue;
+        filteredLog.push(l);
+      }
+      const rows = filteredLog.sort((a,b) => (b.ts||0)-(a.ts||0)).map(l => `
+        <tr>
+          <td>${esc(l.teacherName)}</td>
+          <td>${esc(l.subject)}</td>
+          <td>${esc(l.department)}</td>
+          <td>${new Date(l.ts).toLocaleTimeString()}</td>
+        </tr>
+      `).join("") || `<tr><td colspan="4" class="empty">No classes marked today yet</td></tr>`;
+
+      const depts = await dbGet("departments") || {};
+      let scheduled = 0;
+      for (const deptId of Object.keys(depts)) {
+        const tt = await dbGet(`timetable/${deptId}`) || {};
+        scheduled += Object.keys(tt[dayName()] || {}).length;
+      }
+
+      const bills = await dbGet("bills") || {};
+      const pendingBills = Object.entries(bills).filter(([_,b]) => b.status === "pending");
+      const billHtml = pendingBills.map(([id,b]) => `
+        <div class="att-row" style="margin-bottom:0.35rem;">
+          <span><strong>${esc(b.byName)}</strong> — ${esc(b.description)} · ${Number(b.amount).toLocaleString()} PKR
+            ${b.imageURL ? `<a href="${esc(b.imageURL)}" target="_blank">Receipt</a>` : ""}
+          </span>
+        </div>
+      `).join("") || `<div class="empty" style="padding:0.5rem;">No pending bills</div>`;
+
+      const leaves = await dbGet("leaves") || {};
+      const pendingLeaves = Object.entries(leaves).filter(([_,l]) => l.status === "pending");
+      const leaveHtml = pendingLeaves.map(([id,l]) => `
+        <div class="card" style="margin-bottom:0.5rem;">
+          <div><strong>${esc(l.byName)}</strong> (${esc(l.role)}) · ${esc(l.type)} leave</div>
+          <div style="font-size:0.85rem;color:var(--text-muted);">${esc(l.from)} → ${esc(l.to)} — ${esc(l.reason)}</div>
+          ${l.proofURL ? `<a href="${esc(l.proofURL)}" target="_blank" style="font-size:0.85rem;">View proof</a>` : ""}
+          <div style="margin-top:0.5rem;display:flex;gap:0.4rem;">
+            <button class="btn btn-success btn-sm" data-approve-leave="${esc(id)}">Approve</button>
+            <button class="btn btn-danger btn-sm" data-decline-leave="${esc(id)}">Decline</button>
+          </div>
+        </div>
+      `).join("") || `<div class="empty" style="padding:0.5rem;">No pending special leaves</div>`;
+
+      renderShell(`
+        <div class="grid-3">
+          <div class="stat-card ok"><div class="stat-value">${filteredLog.length}</div><div class="stat-label">Classes Marked Today</div></div>
+          <div class="stat-card"><div class="stat-value">${scheduled}</div><div class="stat-label">Scheduled slots</div></div>
+          <div class="stat-card ${pendingLeaves.length?'warn':''}"><div class="stat-value">${pendingLeaves.length}</div><div class="stat-label">Leave requests</div></div>
+        </div>
+        <div class="card">
+          <div class="card-title">${ICONS.check} Attendance Today — ${todayStr()}</div>
+          <div class="alert alert-info">Teachers on approved leave are excluded from this list.</div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Teacher</th><th>Subject</th><th>Department</th><th>Time</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table></div>
+        </div>
+        <div class="widget-grid">
+          <div class="card">
+            <div class="card-title">${ICONS.leave} Special Leave Requests</div>
+            ${leaveHtml}
+          </div>
+          <div class="card">
+            <div class="card-title">${ICONS.bill} Pending Bills</div>
+            ${billHtml}
+          </div>
+        </div>
+        ${await calendarWidgetHtml()}
+      `);
+
+      document.querySelectorAll("[data-approve-leave]").forEach(btn => {
+        btn.onclick = async () => {
+          await dbUpdate(`leaves/${btn.dataset.approveLeave}`, { status: "approved", decidedBy: profile.uid, decidedAt: Date.now() });
+          toast("Leave approved", "success");
+          renderPVC();
+        };
+      });
+      document.querySelectorAll("[data-decline-leave]").forEach(btn => {
+        btn.onclick = async () => {
+          await dbUpdate(`leaves/${btn.dataset.declineLeave}`, { status: "declined", decidedBy: profile.uid, decidedAt: Date.now() });
+          toast("Leave declined", "success");
+          renderPVC();
+        };
+      });
+    }
+
+    // ─── Router ─────────────────────────────────────────────────
+    function routeToRole() {
+      activeTab = "dashboard";
+      switch (profile.role) {
+        case "admin": return renderAdmin();
+        case "student": return renderStudent();
+        case "teacher": return renderTeacher();
+        case "clerk": return renderClerk();
+        case "finance": return renderFinance();
+        case "exam": return renderExam();
+        case "admission": return renderAdmission();
+        case "pvc": return renderPVC();
+        default:
+          renderShell(`<div class="card"><div class="alert alert-danger">Unknown role: ${esc(profile.role)}. Contact admin.</div></div>`);
+      }
+    }
+
+    // ─── Auth State ─────────────────────────────────────────────
+    onAuthStateChanged(auth, async (user) => {
+      clearListeners();
+      currentUser = user;
+      if (!user) {
+        profile = null;
+        renderLogin();
+        return;
+      }
+      document.getElementById("app").innerHTML = `<div class="login-wrap"><div class="spinner"></div></div>`;
+      try {
+        profile = await ensureProfile(user);
+        if (!profile) {
+          await signOut(auth);
+          toast("Access denied. Your email is not registered. Contact the administrator.", "error");
+          renderLogin();
+          return;
+        }
+        // Term-back dropout check
+        if (profile.role === "student" && (profile.termBacks || 0) >= 3) {
+          await dbRemove(`users/${profile.uid}`);
+          const ek = profile.email.replace(/\./g, ",");
+          await dbRemove(`emails/${ek}`);
+          if (profile.department && profile.batch) {
+            await dbRemove(`deptStudents/${profile.department}/${profile.batch}/${profile.uid}`);
+          }
+          await signOut(auth);
+          toast("Account removed due to three term backs.", "error");
+          return;
+        }
+        await idbSet("profile", profile);
+        routeToRole();
+      } catch (e) {
+        console.error(e);
+        toast("Error loading profile: " + e.message, "error");
+        // Try offline cache
+        const cached = await idbGet("profile");
+        if (cached) {
+          profile = cached;
+          routeToRole();
+          toast("Working offline from cache", "info");
+        } else {
+          renderLogin();
+        }
+      }
+    });
+
+    // ─── Service Worker ─────────────────────────────────────────
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("./sw.js").catch(() => {});
+    }
+
+    // Init IDB
+    openIDB().catch(() => {});
+  </script>
+</body>
+</html>
