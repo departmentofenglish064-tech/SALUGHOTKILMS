@@ -1,4 +1,4 @@
-const CACHE_NAME = 'salu-lms-v10';
+const CACHE_NAME = 'salu-lms-v11';
 const OFFLINE_URLS = [
   './',
   './index.html',
