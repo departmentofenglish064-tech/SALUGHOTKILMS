@@ -602,7 +602,7 @@
     } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-auth.js";
     import {
       getDatabase, ref, set, get, update, remove, push, onValue, off,
-      query, orderByChild, equalTo, limitToLast
+      query, orderByChild, equalTo, limitToLast, goOffline, goOnline
     } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-database.js";
 
     const firebaseConfig = {
@@ -635,6 +635,25 @@
       hod: "Head of Department"
     };
     const DAYS = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+    let activeSemester = "current";
+    function semKey(name) {
+      return String(name || "current").trim().replace(/[.#$/[\]]/g, "_") || "current";
+    }
+    async function loadActiveSemester() {
+      try {
+        const s = await dbGet("settings/activeSemester");
+        activeSemester = (s && s.key) || "current";
+      } catch (_) { activeSemester = "current"; }
+      return activeSemester;
+    }
+    async function loadTimetable(dept) {
+      if (!dept) return {};
+      await loadActiveSemester();
+      const next = await dbGet(`timetableBySem/${dept}/${activeSemester}`) || {};
+      if (Object.keys(next).length) return next;
+      if (activeSemester === "current") return await dbGet(`timetable/${dept}`) || {};
+      return {};
+    }
     /** Normalize profile.roles (map or array) + profile.role into string[] */
     function getRolesList(p = profile) {
       if (!p) return [];
@@ -858,16 +877,17 @@
       return `${h12}:${String(m).padStart(2,"0")} ${ampm}`;
     }
 
+    let clockOffset = 0;
+    function trustedNow() { return new Date(Date.now() + (clockOffset || 0)); }
     function todayStr() {
-      return new Date().toISOString().slice(0, 10);
+      const d = trustedNow();
+      return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
     }
-
     function dayName() {
-      return DAYS[new Date().getDay() === 0 ? 6 : new Date().getDay() - 1] || "Monday";
+      return DAYS[trustedNow().getDay() === 0 ? 6 : trustedNow().getDay() - 1] || "Monday";
     }
-
     function nowMinutes() {
-      const d = new Date();
+      const d = trustedNow();
       return d.getHours() * 60 + d.getMinutes();
     }
 
@@ -892,27 +912,96 @@
     async function dbGet(path) {
       try {
         const snap = await get(ref(db, path));
-        return snap.val();
+        const val = snap.val();
+        if (val != null) idbSet(path, val).catch(() => {});
+        return val;
       } catch (e) {
         console.warn("dbGet failed, trying cache", path, e);
         return idbGet(path);
       }
     }
 
+    async function queueWrite(op, path, data) {
+      const q = (await idbGet("outbox")) || [];
+      q.push({ op, path, data, ts: Date.now() });
+      await idbSet("outbox", q);
+      toast("Saved on this phone. It will sync when online.", "info");
+    }
+
+    async function flushOutbox() {
+      if (!navigator.onLine) return;
+      const q = (await idbGet("outbox")) || [];
+      if (!q.length) return;
+      const left = [];
+      for (const item of q) {
+        try {
+          if (item.op === "set") await set(ref(db, item.path), item.data);
+          else if (item.op === "update") await update(ref(db, item.path), item.data);
+          else if (item.op === "remove") await remove(ref(db, item.path));
+        } catch (_) {
+          left.push(item);
+        }
+      }
+      await idbSet("outbox", left);
+      if (left.length < q.length) toast("Offline changes synced", "success");
+    }
+
     async function dbSet(path, data) {
-      await set(ref(db, path), data);
       await idbSet(path, data);
+      if (!navigator.onLine) return queueWrite("set", path, data);
+      try { await set(ref(db, path), data); }
+      catch (e) { await queueWrite("set", path, data); }
     }
 
     async function dbUpdate(path, data) {
-      await update(ref(db, path), data);
+      if (!navigator.onLine) return queueWrite("update", path, data);
+      try { await update(ref(db, path), data); }
+      catch (e) { await queueWrite("update", path, data); }
     }
 
     async function dbRemove(path) {
-      await remove(ref(db, path));
+      if (!navigator.onLine) return queueWrite("remove", path);
+      try { await remove(ref(db, path)); }
+      catch (e) { await queueWrite("remove", path); }
     }
 
-    function pushId(path) {
+    async function claimStudentSlot() {
+      const slots = await dbGet("syncSlots") || {};
+      const now = Date.now();
+      const active = Object.entries(slots).filter(([_, s]) => s && now - (s.ts || 0) < 2 * 60 * 1000);
+      if (active.length >= 50 && !slots[profile.uid]) return false;
+      await dbSet(`syncSlots/${profile.uid}`, { ts: now, name: profile.name || "" });
+      return true;
+    }
+    async function releaseStudentSlot() {
+      try { await dbRemove(`syncSlots/${profile.uid}`); } catch (_) {}
+    }
+    async function prefetchStudent() {
+      if (!profile) return;
+      await dbGet(`users/${profile.uid}`);
+      await dbGet(`marks/${profile.uid}`);
+      await dbGet(`subjectAtt/${profile.uid}`);
+      await dbGet("announcements");
+      await dbGet("calendar");
+      if (profile.department) await loadTimetable(profile.department);
+    }
+    async function studentSyncCycle() {
+      if (!hasRole("student")) return;
+      goOnline(db);
+      const ok = await claimStudentSlot();
+      if (!ok) {
+        goOffline(db);
+        toast("50 students are syncing. Showing saved data.", "info");
+        return;
+      }
+      try {
+        await flushOutbox();
+        await prefetchStudent();
+      } finally {
+        await releaseStudentSlot();
+        goOffline(db);
+      }
+    }
       return push(ref(db, path)).key;
     }
 
@@ -986,6 +1075,7 @@
           roles: rolesToMap(roleList),
           department: pending.department || "",
           batch: pending.batch || "",
+          rollNo: pending.rollNo || "",
           bio: "",
           researchHistory: "",
           website: "",
@@ -1004,6 +1094,13 @@
         await dbRemove(`pending/${emailKey}`);
         if (hasRole("student", p) && p.department && p.batch) {
           await dbSet(`deptStudents/${p.department}/${p.batch}/${user.uid}`, true);
+          await dbSet(`roster/${p.department}/${user.uid}`, {
+            name: p.name, email: p.email, batch: p.batch, rollNo: p.rollNo || "", feesTotal: p.feesTotal || 0
+          });
+          await dbSet(`fees/${user.uid}`, {
+            name: p.name, email: p.email, department: p.department,
+            total: p.feesTotal || 0, paid: 0, rollNo: p.rollNo || ""
+          });
         }
         if (hasRole("teacher", p) && p.department) {
           await dbSet(`deptTeachers/${p.department}/${user.uid}`, true);
@@ -1071,6 +1168,7 @@
             <button class="btn btn-outline btn-sm" id="btn-home">Home</button>
             <button class="btn btn-outline btn-sm" id="btn-dash">Dashboard</button>
             <button class="btn btn-outline btn-sm" id="btn-people">People</button>
+            ${hasRole("student") ? `<button class="btn btn-outline btn-sm" id="btn-sync">Sync</button>` : ""}
             <div class="user-chip" id="btn-my-profile" title="My public profile" style="cursor:pointer;">
               <img src="${esc(profile.photoURL || LOGO)}" alt="" onerror="this.src='${LOGO}'" />
               <span class="hide-sm">${esc(profile.name)}</span>
@@ -1086,6 +1184,8 @@
       document.getElementById("btn-home").onclick = () => renderLanding();
       document.getElementById("btn-dash").onclick = () => routeToRole();
       document.getElementById("btn-people").onclick = () => renderPeoplePage();
+      const syncBtn = document.getElementById("btn-sync");
+      if (syncBtn) syncBtn.onclick = async () => { await studentSyncCycle(); toast("Saved on this phone", "success"); routeToRole(); };
       document.getElementById("btn-my-profile").onclick = (e) => {
         if (e.target.closest("#role-switch")) return;
         openPublicProfile(profile.uid, hasRole("student") ? "student" : "dir");
@@ -1779,7 +1879,7 @@
 
     async function studentTimetableHtml() {
       if (!profile.department) return `<div class="card"><div class="empty">No department assigned.</div></div>`;
-      const tt = await dbGet(`timetable/${profile.department}`) || {};
+      const tt = await loadTimetable(profile.department);
       const today = dayName();
       let html = "";
       for (const day of DAYS) {
@@ -1924,6 +2024,7 @@
         </div>
         <div class="meta">
           <div><strong>Student:</strong> ${esc(profile.name)}</div>
+          <div><strong>Roll no.:</strong> ${esc(profile.rollNo || "—")}</div>
           <div><strong>Email:</strong> ${esc(profile.email)}</div>
           <div><strong>Department:</strong> ${esc(deptName)}</div>
           <div><strong>Batch:</strong> ${esc(batchName)}</div>
@@ -2080,9 +2181,9 @@
         const fd = new FormData(formPaper);
         const papers = Array.isArray(profile.papers) ? profile.papers.slice() : Object.values(profile.papers || {});
         papers.push({ title: fd.get("title").trim(), link: (fd.get("link")||"").trim(), abstract: (fd.get("abstract")||"").trim(), ts: Date.now() });
-        await dbUpdate(`users/${profile.uid}`, { papers });
+        await dbSet(`directory/${profile.uid}/papers`, papers);
+        await dbUpdate(`users/${profile.uid}`, { papers: null });
         profile.papers = papers;
-        await publishDirectory(profile);
         toast("Paper added", "success");
         renderWorksLists();
         formPaper.reset();
@@ -2093,9 +2194,9 @@
         const fd = new FormData(formBook);
         const books = Array.isArray(profile.books) ? profile.books.slice() : Object.values(profile.books || {});
         books.push({ title: fd.get("title").trim(), coverURL: (fd.get("coverURL")||"").trim(), buyURL: (fd.get("buyURL")||"").trim(), ts: Date.now() });
-        await dbUpdate(`users/${profile.uid}`, { books });
+        await dbSet(`directory/${profile.uid}/books`, books);
+        await dbUpdate(`users/${profile.uid}`, { books: null });
         profile.books = books;
-        await publishDirectory(profile);
         toast("Book added", "success");
         renderWorksLists();
         formBook.reset();
@@ -2131,7 +2232,8 @@
       document.querySelectorAll("[data-del-book]").forEach(btn => {
         btn.onclick = async () => {
           const books2 = (Array.isArray(profile.books) ? profile.books : Object.values(profile.books || {})).filter((_, i) => i !== Number(btn.dataset.delBook));
-          await dbUpdate(`users/${profile.uid}`, { books: books2 });
+          await dbSet(`directory/${profile.uid}/books`, books2);
+          await dbUpdate(`users/${profile.uid}`, { books: null });
           profile.books = books2;
           await publishDirectory(profile);
           renderWorksLists();
@@ -2252,7 +2354,7 @@
 
     async function teacherDashHtml() {
       if (!profile.department) return `<div class="card"><div class="empty">No department assigned.</div></div>`;
-      const tt = await dbGet(`timetable/${profile.department}`) || {};
+      const tt = await loadTimetable(profile.department);
       const today = dayName();
       const slots = Object.entries(tt[today] || {}).filter(([_,s]) => s.teacherId === profile.uid)
         .sort((a,b) => timeToMin(a[1].start) - timeToMin(b[1].start));
@@ -2349,21 +2451,14 @@
             }).join("") || `<div class="empty">No weekly classes assigned yet</div>`}
           </div>
         </div>
-        ${await (async () => {
-          const missed = await dbGet("missedClasses") || {};
-          const alerts = Object.entries(missed)
-            .filter(([_,m]) => (m.count||0) > 3 && m.teacherId !== profile.uid)
-            .map(([_,m]) => `<div class="alert alert-warning">${ICONS.alert} <strong>${esc(m.teacherName)}</strong> has missed ${m.count} classes.</div>`)
-            .join("");
-          return alerts + await calendarWidgetHtml();
-        })()}
+        ${await calendarWidgetHtml()}
       `;
     }
 
     async function teacherAttHtml() {
       // List today's classes for this teacher so they can pick one
       if (!profile.department) return `<div class="card"><div class="empty">No department</div></div>`;
-      const tt = await dbGet(`timetable/${profile.department}`) || {};
+      const tt = await loadTimetable(profile.department);
       const today = dayName();
       const slots = Object.entries(tt[today] || {}).filter(([_,s]) => s.teacherId === profile.uid);
 
@@ -2517,7 +2612,7 @@
 
     async function teacherAnnHtml() {
       const anns = await dbGet("announcements") || {};
-      const tt = profile.department ? (await dbGet(`timetable/${profile.department}`) || {}) : {};
+      const tt = profile.department ? (await loadTimetable(profile.department)) : {};
       const subjects = new Map();
       for (const day of DAYS) {
         for (const [sid, s] of Object.entries(tt[day] || {})) {
@@ -2610,9 +2705,9 @@
           locked: false,
           records
         };
-        await dbSet(`attendance/${key}`, data);
+        await dbSet(`attendanceByDept/${profile.department}/${todayStr()}/${key}`, data);
         setTimeout(async () => {
-          try { await dbUpdate(`attendance/${key}`, { locked: true }); } catch(_){}
+          try { await dbUpdate(`attendanceByDept/${profile.department}/${todayStr()}/${key}`, { locked: true }); } catch(_){}
         }, 15 * 60 * 1000);
         // Per-subject attendance (leave counts as present)
         const subKey = subject.replace(/[.#$/[\]]/g, "_");
@@ -2684,7 +2779,12 @@
         `;
         document.getElementById("btn-save-marks").onclick = async () => {
           const subj = document.getElementById("btn-save-marks").dataset.subject;
-          let saved = 0;
+          const lock = await dbGet(`semesterLocks/${profile.department}`);
+        if (lock && Object.keys(lock).length) {
+          toast("Marks are locked for this department after semester close. Ask Exam Wing to unlock.", "error");
+          return;
+        }
+        let saved = 0;
           for (const row of document.querySelectorAll("#marks-list tr[data-uid]")) {
             const midEl = row.querySelector("[data-mid]");
             const finEl = row.querySelector("[data-final]");
@@ -2811,7 +2911,8 @@
           <form id="form-tt">
             <div class="form-row">
               <div class="form-group"><label>Department</label><select name="department" required id="tt-dept"><option value="">Select…</option>${deptOpts}</select></div>
-              <div class="form-group"><label>Day</label><select name="day" required>${DAYS.map(d=>`<option>${d}</option>`).join("")}</select></div>
+              <div class="form-group"><label>Semester</label><input name="semester" id="tt-semester" placeholder="Fall 2026" required /></div>
+            <div class="form-group"><label>Day</label><select name="day" required>${DAYS.map(d=>`<option>${d}</option>`).join("")}</select></div>
             </div>
             <div class="form-row">
               <div class="form-group"><label>Start Time</label><input name="start" type="time" required /></div>
@@ -2832,6 +2933,7 @@
               <div class="form-group"><label>Room</label><input name="room" placeholder="e.g. R-12" /></div>
             </div>
             <button type="submit" class="btn btn-primary">Save Slot</button>
+            <button type="button" class="btn btn-outline" id="btn-set-sem" style="margin-left:0.4rem;">Set as current semester</button>
           </form>
         </div>
         <div class="card">
@@ -2865,7 +2967,13 @@
         <div class="card">
           <div class="card-title">Quick Reports</div>
           <p style="color:var(--text-muted);font-size:0.9rem;">Select department and generate a summary of today's attendance submissions.</p>
-          <button class="btn btn-primary" id="btn-today-report">Today's Attendance Report</button>
+          <button class="btn btn-outline" id="btn-trim-log" style="margin-left:0.4rem;">Trim logs older than 90 days</button>
+          <div class="form-row" style="margin-top:1rem;">
+            <div class="form-group"><label>From</label><input type="date" id="exp-from" /></div>
+            <div class="form-group"><label>To</label><input type="date" id="exp-to" value="${todayStr()}" /></div>
+            <div class="form-group"><label>Department id</label><input id="exp-dept" placeholder="department id from timetable" /></div>
+          </div>
+          <button class="btn btn-outline" id="btn-export-att">Download attendance CSV</button>
           <div id="report-area" style="margin-top:1rem;"></div>
         </div>
       `;
@@ -2920,6 +3028,7 @@
         const fd = new FormData(formTt);
         const dept = fd.get("department");
         const day = fd.get("day");
+        const semester = semKey(fd.get("semester"));
         const teacherId = fd.get("teacherId");
         if (!teacherId) { toast("Please select a teacher via @ search", "error"); return; }
         const batchId = fd.get("batch");
@@ -2928,8 +3037,8 @@
           const b = await dbGet(`batches/${batchId}`);
           batchName = b?.name || "";
         }
-        const slotId = pushId(`timetable/${dept}/${day}`);
-        await dbSet(`timetable/${dept}/${day}/${slotId}`, {
+        const slotId = pushId(`timetableBySem/${dept}/${semester}/${day}`);
+        await dbSet(`timetableBySem/${dept}/${semester}/${day}/${slotId}`, {
           start: fd.get("start"),
           end: fd.get("end"),
           subject: fd.get("subject").trim(),
@@ -2938,10 +3047,20 @@
           batch: batchId,
           batchName,
           room: fd.get("room").trim(),
+          semester,
           createdAt: Date.now()
         });
-        toast("Timetable slot saved", "success");
+        toast("Saved on semester " + semester + ". Old semester timetable was not deleted.", "success");
         formTt.reset();
+      };
+      const setSem = document.getElementById("btn-set-sem");
+      if (setSem) setSem.onclick = async () => {
+        const name = document.getElementById("tt-semester").value.trim();
+        if (!name) { toast("Type a semester name first", "error"); return; }
+        const key = semKey(name);
+        await dbSet("settings/activeSemester", { key, title: name, ts: Date.now() });
+        activeSemester = key;
+        toast("Current semester is now " + name + ". Dashboards will use this timetable.", "success");
       };
 
       const filterDept = document.getElementById("tt-filter-dept");
@@ -2949,7 +3068,7 @@
         const dept = filterDept.value;
         const box = document.getElementById("tt-existing");
         if (!dept) { box.innerHTML = ""; return; }
-        const tt = await dbGet(`timetable/${dept}`) || {};
+        const tt = await loadTimetable(dept);
         let html = "";
         for (const day of DAYS) {
           const slots = Object.entries(tt[day]||{});
@@ -2960,6 +3079,8 @@
               <div class="tt-time">${fmtTime(s.start)} – ${fmtTime(s.end)}</div>
               <div class="tt-subject">${esc(s.subject)} · ${esc(s.teacherName||"")}</div>
               <div class="tt-meta">${esc(s.batchName||"")} · ${esc(s.room||"")}</div>
+              <button class="btn btn-outline btn-sm" style="margin-top:0.3rem;" data-edit-sub="${esc(dept)}|${esc(day)}|${esc(sid)}">Change subject</button>
+              <button class="btn btn-outline btn-sm" style="margin-top:0.3rem;" data-reassign="${esc(dept)}|${esc(day)}|${esc(sid)}">Reassign teacher</button>
               <button class="btn btn-danger btn-sm" style="margin-top:0.3rem;" data-del-slot="${esc(dept)}|${esc(day)}|${esc(sid)}">Delete</button>
             </div>`;
           }
@@ -2970,8 +3091,31 @@
           btn.onclick = async () => {
             if (!confirm("Delete this slot?")) return;
             const [d, day, sid] = btn.dataset.delSlot.split("|");
-            await dbRemove(`timetable/${d}/${day}/${sid}`);
+            await dbRemove(`timetableBySem/${d}/${activeSemester}/${day}/${sid}`);
             toast("Deleted", "success");
+            filterDept.onchange();
+          };
+        });
+        box.querySelectorAll("[data-edit-sub]").forEach(btn => {
+          btn.onclick = async () => {
+            const subject = prompt("New subject name for this semester slot:");
+            if (!subject) return;
+            const [d, day, sid] = btn.dataset.editSub.split("|");
+            await dbUpdate(`timetableBySem/${d}/${activeSemester}/${day}/${sid}`, { subject: subject.trim() });
+            toast("Subject updated for the current semester", "success");
+            filterDept.onchange();
+          };
+        });
+        box.querySelectorAll("[data-reassign]").forEach(btn => {
+          btn.onclick = async () => {
+            const name = prompt("New teacher name (account is not deleted):");
+            if (!name) return;
+            const users = await dbGet("users") || {};
+            const found = Object.entries(users).find(([_, u]) => (u.name || "").toLowerCase() === name.toLowerCase().trim() && (u.role === "teacher" || getRolesList(u).includes("teacher")));
+            if (!found) { toast("No teacher with that exact name", "error"); return; }
+            const [d, day, sid] = btn.dataset.reassign.split("|");
+            await dbUpdate(`timetableBySem/${d}/${activeSemester}/${day}/${sid}`, { teacherId: found[0], teacherName: found[1].name });
+            toast("Slot reassigned. Previous teacher account kept.", "success");
             filterDept.onchange();
           };
         });
@@ -2983,10 +3127,8 @@
         const date = document.getElementById("att-mon-date").value;
         const box = document.getElementById("att-mon-results");
         if (!dept || !date) { toast("Select department and date", "error"); return; }
-        const all = await dbGet("attendance") || {};
-        const filtered = Object.entries(all).filter(([k,v]) =>
-          v.department === dept && v.date === date
-        );
+        const day = await dbGet(`attendanceByDept/${dept}/${date}`) || {};
+        const filtered = Object.entries(day);
         if (!filtered.length) {
           box.innerHTML = `<div class="empty">No attendance records</div>`;
           return;
@@ -3023,6 +3165,51 @@
           <tbody>${rows}</tbody>
         </table></div>`;
       };
+      const btnExp = document.getElementById("btn-export-att");
+      if (btnExp) btnExp.onclick = () => exportAttendance(
+        document.getElementById("exp-dept").value.trim(),
+        document.getElementById("exp-from").value,
+        document.getElementById("exp-to").value
+      );
+      const trim = document.getElementById("btn-trim-log");
+      if (trim) trim.onclick = async () => {
+        if (!confirm("Delete attendance logs older than 90 days? Today's report and marks stay.")) return;
+        const logs = await dbGet("attendanceLog") || {};
+        const cut = new Date();
+        cut.setDate(cut.getDate() - 90);
+        const cutStr = cut.toISOString().slice(0, 10);
+        let n = 0;
+        for (const date of Object.keys(logs)) {
+          if (date < cutStr) { await dbRemove(`attendanceLog/${date}`); n++; }
+        }
+        toast(n ? "Removed " + n + " old days" : "Nothing older than 90 days", "success");
+      };
+    }
+
+    async function exportAttendance(dept, from, to) {
+      if (!dept || !from || !to) { toast("Department, from, and to are required", "error"); return; }
+      const scoped = await dbGet(`attendanceByDept/${dept}`) || {};
+      const lines = ["date,subject,teacher,student,status"];
+      const use = Object.keys(scoped).length ? scoped : null;
+      if (use) {
+        Object.entries(use).forEach(([date, day]) => {
+          if (date < from || date > to || !day) return;
+          Object.values(day).forEach(v => {
+            Object.values(v.records || {}).forEach(r => {
+              lines.push([date, v.subject, v.teacherName, r.name, r.leave ? "Leave" : (r.present ? "Present" : "Absent")].map(x => `"${String(x||"").replace(/"/g, "'")}"`).join(","));
+            });
+          });
+        });
+      } else {
+        toast("No department archive yet. New attendance will fill it. Old records stay safe.", "info");
+      }
+      if (lines.length < 2) { toast("No rows in that range", "error"); return; }
+      const blob = new Blob([lines.join("\n")], { type: "text/csv" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `attendance-${dept}-${from}-${to}.csv`;
+      a.click();
+      toast("CSV downloaded", "success");
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -3030,28 +3217,28 @@
     // ═══════════════════════════════════════════════════════════
     async function renderFinance() {
       clearListeners();
-      const users = await dbGet("users") || {};
-      const students = Object.entries(users).filter(([_,u]) => u.role === "student");
+      const fees = await dbGet("fees") || {};
+      const students = Object.entries(fees);
       let totalDue = 0, totalPaid = 0, withDues = 0;
       const rows = students.map(([uid, u]) => {
-        const rem = (u.feesTotal||0) - (u.feesPaid||0);
-        totalDue += u.feesTotal||0;
-        totalPaid += u.feesPaid||0;
+        const rem = (u.total||0) - (u.paid||0);
+        totalDue += u.total||0;
+        totalPaid += u.paid||0;
         if (rem > 0) withDues++;
         return `
           <tr>
             <td>${esc(u.name)}</td>
-            <td>${esc(u.email)}</td>
+            <td>${esc(u.email||"—")}</td>
             <td>${esc(u.department||"—")}</td>
-            <td>${(u.feesTotal||0).toLocaleString()}</td>
-            <td>${(u.feesPaid||0).toLocaleString()}</td>
+            <td>${(u.total||0).toLocaleString()}</td>
+            <td>${(u.paid||0).toLocaleString()}</td>
             <td class="${rem>0?'badge-warning':''}">${rem.toLocaleString()}</td>
             <td>
-              <button class="btn btn-sm btn-outline" data-pay="${esc(uid)}" data-name="${esc(u.name)}" data-paid="${u.feesPaid||0}" data-total="${u.feesTotal||0}">Update Paid</button>
+              <button class="btn btn-sm btn-outline" data-pay="${esc(uid)}" data-name="${esc(u.name)}" data-paid="${u.paid||0}" data-total="${u.total||0}">Update Paid</button>
             </td>
           </tr>
         `;
-      }).join("") || `<tr><td colspan="7" class="empty">No students</td></tr>`;
+      }).join("") || `<tr><td colspan="7" class="empty">No fee records yet. Admission invite writes one. Existing students appear after Exam closes a semester or you update paid once.</td></tr>`;
 
       const bills = await dbGet("bills") || {};
       const pendingBills = Object.entries(bills).filter(([_,b]) => b.status === "pending");
@@ -3091,6 +3278,7 @@
           const val = Number(paid);
           if (isNaN(val) || val < 0) { toast("Invalid amount", "error"); return; }
           await dbUpdate(`users/${btn.dataset.pay}`, { feesPaid: val });
+          await dbUpdate(`fees/${btn.dataset.pay}`, { paid: val });
           toast("Updated", "success");
           renderFinance();
         };
@@ -3109,7 +3297,11 @@
     // ═══════════════════════════════════════════════════════════
     async function studentMgmtHtml() {
       const pending = await dbGet("pending") || {};
-      const users = await dbGet("users") || {};
+      const roster = await dbGet("roster") || {};
+      const users = {};
+      Object.entries(roster).forEach(([dept, people]) => {
+        Object.entries(people || {}).forEach(([uid, u]) => { users[uid] = { ...u, department: u.department || dept, role: "student" }; });
+      });
       const depts = await dbGet("departments") || {};
       const batches = await dbGet("batches") || {};
       const deptOpts = Object.entries(depts).map(([id,d]) => `<option value="${esc(id)}">${esc(d.name)}</option>`).join("");
@@ -3137,8 +3329,12 @@
             <td>${esc(u.email)}</td>
             <td>${esc(depts[u.department]?.name || u.department || "—")}</td>
             <td>${esc(batches[u.batch]?.name || u.batch || "—")}</td>
+            <td>${esc(u.rollNo || "—")}</td>
             <td>${(u.feesTotal||0).toLocaleString()}</td>
-            <td><button class="btn btn-danger btn-sm" data-del-student="${esc(uid)}">Delete</button></td>
+            <td>
+              <button class="btn btn-outline btn-sm" data-roll="${esc(uid)}">Roll no.</button>
+              <button class="btn btn-danger btn-sm" data-del-student="${esc(uid)}">Delete</button>
+            </td>
           </tr>
         `).join("") || `<tr><td colspan="6" class="empty">No students yet</td></tr>`;
 
@@ -3163,8 +3359,9 @@
               <div class="form-group"><label>Department</label><select name="department" required><option value="">Select…</option>${deptOpts}</select></div>
               <div class="form-group"><label>Batch</label><select name="batch" required><option value="">Select…</option>${batchOpts}</select></div>
             </div>
+            <div class="form-group"><label>Roll number</label><input name="rollNo" required placeholder="e.g. ENG-22-014" /></div>
             <div class="form-group"><label>Fees Total (PKR)</label><input name="feesTotal" type="number" min="0" value="0" /></div>
-            <button type="submit" class="btn btn-primary">Invite Student</button>
+            <button class="btn btn-primary">Invite Student</button>
           </form>
         </div>
         <div class="card">
@@ -3214,6 +3411,7 @@
             department: fd.get("department") || "",
             batch: fd.get("batch") || "",
             feesTotal: Number(fd.get("feesTotal")||0),
+            rollNo: (fd.get("rollNo")||"").trim(),
             invitedAt: Date.now()
           });
           toast("Student invitation created", "success");
@@ -3229,6 +3427,25 @@
           if (!confirm("Remove this invitation?")) return;
           await dbRemove(`pending/${b.dataset.delPending}`);
           toast("Removed", "success");
+          rerender();
+        };
+      });
+
+      document.querySelectorAll("[data-roll]").forEach(b => {
+        b.onclick = async () => {
+          const uid = b.dataset.roll;
+          const u = await dbGet(`users/${uid}`);
+          if (!u) return;
+          const roll = prompt("Roll number for " + (u.name || "") + ". Account is not replaced.", u.rollNo || "");
+          if (roll == null) return;
+          await dbUpdate(`users/${uid}`, { rollNo: roll.trim() });
+          await dbUpdate(`fees/${uid}`, { rollNo: roll.trim(), name: u.name || "", email: u.email || "", department: u.department || "", total: u.feesTotal || 0, paid: u.feesPaid || 0 });
+          const depts = await dbGet("departments") || {};
+          await dbUpdate(`publicBoard/all/${uid}`, {
+            name: u.name || "", gpa: Number(u.gpa || 0), rollNo: roll.trim(),
+            deptCode: (depts[u.department] && depts[u.department].code) || u.department || ""
+          });
+          toast("Roll number saved", "success");
           rerender();
         };
       });
@@ -3317,6 +3534,8 @@
             </div>
             <button class="btn btn-primary" id="btn-exam-load">Load Ledger</button>
             <button class="btn btn-outline" id="btn-exam-print" style="margin-left:0.5rem;">Print</button>
+            <button class="btn btn-outline" id="btn-close-sem" style="margin-left:0.5rem;">Close semester</button>
+            <button class="btn btn-outline" id="btn-unlock-sem" style="margin-left:0.5rem;">Unlock marks</button>
             <div id="exam-ledger" style="margin-top:1rem;"></div>
           </div>
         `;
@@ -3370,6 +3589,50 @@
         };
         const btnPrint = document.getElementById("btn-exam-print");
         if (btnPrint) btnPrint.onclick = () => window.print();
+        const btnClose = document.getElementById("btn-close-sem");
+        if (btnClose) btnClose.onclick = async () => {
+          const dept = document.getElementById("exam-dept").value;
+          if (!dept) { toast("Select a department", "error"); return; }
+          const sem = prompt("Semester name to close (once). Example: Fall 2026");
+          if (!sem) return;
+          const semKey = sem.trim().replace(/[.#$/[\]]/g, "_");
+          if (!confirm("Close " + sem + " for this department? GPA is recalculated. A term back is added only if GPA is below 1.7 and this semester was not closed before. Accounts are not deleted.")) return;
+          const users = await dbGet("users") || {};
+          const depts = await dbGet("departments") || {};
+          let n = 0;
+          for (const [uid, u] of Object.entries(users)) {
+            if (u.department !== dept) continue;
+            if (u.role !== "student" && !getRolesList(u).includes("student")) continue;
+            const marks = await dbGet(`marks/${uid}`) || {};
+            const gps = Object.values(marks).map(x => gradePoint(x.total100 ?? x.score ?? 0));
+            const gpa = gps.length ? Math.round((gps.reduce((a, b) => a + b, 0) / gps.length) * 100) / 100 : Number(u.gpa || 0);
+            const closed = (u.closedSemesters && u.closedSemesters[semKey]) || false;
+            let termBacks = u.termBacks || 0;
+            if (!closed && gpa > 0 && gpa < 1.7) termBacks += 1;
+            await dbUpdate(`users/${uid}`, { gpa, termBacks, ["closedSemesters/" + semKey]: true, marksLocked: semKey });
+            await dbSet(`publicBoard/all/${uid}`, {
+              name: u.name || "",
+              gpa,
+              rollNo: u.rollNo || "",
+              deptCode: (depts[u.department] && depts[u.department].code) || u.department || ""
+            });
+            await dbSet(`fees/${uid}`, {
+              name: u.name || "", email: u.email || "", department: u.department || "",
+              total: u.feesTotal || 0, paid: u.feesPaid || 0, rollNo: u.rollNo || ""
+            });
+            n++;
+          }
+          await dbSet(`semesterLocks/${dept}/${semKey}`, { by: profile.uid, ts: Date.now(), title: sem });
+          toast("Semester closed for " + n + " student(s). Marks for this department are locked.", "success");
+        };
+        const btnUnlock = document.getElementById("btn-unlock-sem");
+        if (btnUnlock) btnUnlock.onclick = async () => {
+          const dept = document.getElementById("exam-dept").value;
+          if (!dept) { toast("Select a department", "error"); return; }
+          if (!confirm("Unlock marks for this department? Student accounts and marks stay.")) return;
+          await dbRemove(`semesterLocks/${dept}`);
+          toast("Marks unlocked. Nothing was deleted.", "success");
+        };
       }
     }
 
@@ -3386,10 +3649,10 @@
 
       let body = "";
       if (activeTab === "dashboard") {
-        const users = await dbGet("users") || {};
+        const roster = await dbGet("roster") || {};
         const batches = await dbGet("batches") || {};
         const pending = await dbGet("pending") || {};
-        const students = Object.values(users).filter(u => u.role === "student");
+        const students = Object.values(roster).flatMap(p => Object.values(p || {}));
         const pendingStudents = Object.values(pending).filter(p => p.role === "student");
         body = `
           <div class="grid-3">
@@ -3450,7 +3713,7 @@
       const missedRows = [];
       let scheduled = 0;
       for (const deptId of Object.keys(depts)) {
-        const tt = await dbGet(`timetable/${deptId}`) || {};
+        const tt = await loadTimetable(deptId);
         const daySlots = tt[today] || {};
         for (const [sid, s] of Object.entries(daySlots)) {
           scheduled++;
@@ -3554,24 +3817,8 @@
       const events = upcoming.filter(([_, c]) => c.type === "event");
       const holidays = upcoming.filter(([_, c]) => c.type !== "event");
       const news = Object.values(anns).sort((a, b) => (b.ts || 0) - (a.ts || 0)).slice(0, 6);
-      const depts = await dbGet("departments") || {};
-      let students = [];
-      if (!hasRole("student") || hasRole("teacher") || hasRole("admin") || hasRole("exam")) {
-        const users = await dbGet("users") || {};
-        students = Object.entries(users)
-          .filter(([_, u]) => u.role === "student" || getRolesList(u).includes("student"))
-          .map(([uid, u]) => ({
-            uid, name: u.name || "", gpa: Number(u.gpa || 0),
-            rollNo: u.rollNo || u.batch || "—",
-            deptCode: (depts[u.department] && depts[u.department].code) || u.department || "—"
-          }));
-        for (const s of students) {
-          dbSet(`publicBoard/all/${s.uid}`, { name: s.name, gpa: s.gpa, rollNo: s.rollNo, deptCode: s.deptCode }).catch(() => {});
-        }
-      } else {
-        const board = await dbGet("publicBoard/all") || {};
-        students = Object.values(board).map(s => ({ ...s, gpa: Number(s.gpa || 0) }));
-      }
+      const board = await dbGet("publicBoard/all") || {};
+      const students = Object.values(board).map(s => ({ ...s, gpa: Number(s.gpa || 0) }));
       const top = students.filter(s => s.gpa > 0).sort((a, b) => b.gpa - a.gpa).slice(0, 10);
       const rows = top.map((s, i) => `<tr>
         <td style="font-weight:700;color:var(--primary);">${i + 1}</td>
@@ -3582,29 +3829,8 @@
       </tr>`).join("") || `<tr><td colspan="5" class="empty">GPA will appear after marks are uploaded</td></tr>`;
       let classLeaders = [];
       try {
-        if (hasRole("teacher") || hasRole("admin") || hasRole("hod") || hasRole("clerk") || hasRole("pvc")) {
-          const users = await dbGet("users") || {};
-          const since = new Date();
-          since.setFullYear(since.getFullYear() - 1);
-          const sinceStr = since.toISOString().slice(0, 10);
-          const logs = await dbGet("attendanceLog") || {};
-          const taken = {};
-          Object.entries(logs).forEach(([date, day]) => {
-            if (date < sinceStr || !day) return;
-            Object.values(day).forEach(l => {
-              if (l && l.teacherId) taken[l.teacherId] = (taken[l.teacherId] || 0) + 1;
-            });
-          });
-          classLeaders = Object.entries(users)
-            .filter(([_, u]) => u.role === "teacher" || getRolesList(u).includes("teacher"))
-            .map(([uid, u]) => ({ name: u.name, attended: taken[uid] || 0 }))
-            .filter(t => t.attended > 0)
-            .sort((a, b) => b.attended - a.attended)
-            .slice(0, 10);
-        } else {
-          const saved = await dbGet("publicBoard/classes") || {};
-          classLeaders = Object.values(saved).sort((a, b) => (b.attended || 0) - (a.attended || 0)).slice(0, 10);
-        }
+        const saved = await dbGet("publicBoard/classes") || {};
+        classLeaders = Object.values(saved).sort((a, b) => (b.attended || 0) - (a.attended || 0)).slice(0, 10);
       } catch (_) {
         classLeaders = [];
       }
@@ -3806,7 +4032,7 @@
         return;
       }
       const depts = await dbGet("departments") || {};
-      const tt = await dbGet(`timetable/${profile.department}`) || {};
+      const tt = await loadTimetable(profile.department);
       const today = dayName();
       const log = await dbGet(`attendanceLog/${todayStr()}`) || {};
       const slots = Object.entries(tt[today] || {});
@@ -3834,7 +4060,17 @@
           </table></div>
         </div>
         <p style="font-size:0.85rem;color:var(--text-muted);">Switch back to Teacher in the header for attendance, marks, and your profile.</p>
+        <div class="card">
+          <div class="card-title">Download attendance</div>
+          <div class="form-row">
+            <div class="form-group"><label>From</label><input type="date" id="hod-from" /></div>
+            <div class="form-group"><label>To</label><input type="date" id="hod-to" value="${todayStr()}" /></div>
+          </div>
+          <button class="btn btn-outline" id="hod-export">Download CSV</button>
+        </div>
       `);
+      const hx = document.getElementById("hod-export");
+      if (hx) hx.onclick = () => exportAttendance(profile.department, document.getElementById("hod-from").value, document.getElementById("hod-to").value);
     }
 
     function routeToRole() {
@@ -3900,6 +4136,7 @@
           return;
         }
         await idbSet("profile", profile);
+        if (hasRole("student") && !hasRole("teacher") && !hasRole("admin")) await studentSyncCycle();
         renderLanding();
       } catch (e) {
         console.error(e);
@@ -3924,7 +4161,11 @@
     }
 
     // Init IDB
-    openIDB().catch(() => {});
+    onValue(ref(db, ".info/serverTimeOffset"), (snap) => {
+      clockOffset = Number(snap.val() || 0);
+    });
+    window.addEventListener("online", () => flushOutbox());
+    openIDB().then(() => flushOutbox()).catch(() => {});
   </script>
 </body>
 </html>
