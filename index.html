@@ -588,8 +588,12 @@
 </head>
 <body>
   <div id="app">
-    <div id="loading" class="login-wrap">
-      <div class="spinner"></div>
+    <div class="login-wrap">
+      <div class="login-card">
+        <h1>SALU LMS</h1>
+        <p>Shah Abdul Latif University<br/>Ghotki Campus</p>
+        <p style="margin-top:1rem;font-size:0.85rem;color:var(--text-muted);">Opening sign-in…</p>
+      </div>
     </div>
   </div>
   <div id="toast-container"></div>
@@ -4136,8 +4140,8 @@
           return;
         }
         await idbSet("profile", profile);
-        if (hasRole("student") && !hasRole("teacher") && !hasRole("admin")) await studentSyncCycle();
         renderLanding();
+        if (hasRole("student") && !hasRole("teacher") && !hasRole("admin")) studentSyncCycle();
       } catch (e) {
         console.error(e);
         toast("Error loading profile: " + e.message, "error");
