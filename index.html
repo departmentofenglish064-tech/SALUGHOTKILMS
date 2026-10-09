@@ -590,10 +590,13 @@
   <div id="app">
     <div class="login-wrap">
       <div class="login-card">
+        <img src="https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEhKVuDaGpypHWWRbcin_iV8WvcRZpqQRCeNn1vVgjbaZjygpsJH-QGpSe5Psz5Ishh8l_j39Y1zm3TAAEn4q6ZsNLrQe83U80JkrY_qPh9t710JHedVVldoWG7ZJo8s20gtbBK_Li8wdrhEkC_0ibyNFyLA_B6oRlzyzgKqy5OKzkuFRbT1WxjNXivjbalV/s225/images%20(5).jpeg" alt="SALU" style="width:72px;height:72px;margin-bottom:1rem;border-radius:12px;object-fit:cover;background:#fff;" />
         <h1>SALU LMS</h1>
         <p>Shah Abdul Latif University<br/>Ghotki Campus</p>
         <button class="google-btn" id="btn-google" type="button">Sign in with Google</button>
-        <p id="signin-wait" style="margin-top:0.8rem;font-size:0.8rem;color:var(--text-muted);">Sign-in button is ready. If it does nothing, the connection is still starting.</p>
+        <p style="margin-top:1.5rem;font-size:0.8rem;color:var(--text-muted);">Only authorised university accounts can access this system.</p>
+        <p style="margin-top:1rem;"><a href="https://www.authormasoncarter.com/p/salu-ghotki-lms-project-page.html" target="_blank" rel="noopener" style="font-size:0.72rem;font-weight:600;color:var(--text-muted);">Report Bugs</a></p>
+        <p style="margin-top:0.85rem;font-size:0.75rem;"><a href="https://www.authormasoncarter.com" target="_blank" rel="noopener" style="font-style:italic;color:var(--text-muted);">Developer: Mason Carter</a></p>
       </div>
     </div>
   </div>
@@ -624,6 +627,7 @@
     const auth = getAuth(app);
     const db = getDatabase(app);
     const provider = new GoogleAuthProvider();
+    renderLogin();
 
     // ─── Constants ──────────────────────────────────────────────
     const ADMIN_EMAIL = "departmentofenglish064@gmail.com";
