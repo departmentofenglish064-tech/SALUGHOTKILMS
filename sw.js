@@ -1,4 +1,4 @@
-const CACHE_NAME = 'salu-lms-v7';
+const CACHE_NAME = 'salu-lms-v8';
 const OFFLINE_URLS = [
   './',
   './index.html',
@@ -47,7 +47,8 @@ self.addEventListener('fetch', (event) => {
         }
         return response;
       }).catch(() => cached || caches.match('./index.html'));
-      return cached || networkFetch;
+      const isPage = url.pathname.endsWith('/') || url.pathname.endsWith('.html') || url.pathname.endsWith('index.html');
+      return isPage ? networkFetch : (cached || networkFetch);
     })
   );
 });
