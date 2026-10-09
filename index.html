@@ -1189,7 +1189,11 @@
       document.getElementById("btn-dash").onclick = () => routeToRole();
       document.getElementById("btn-people").onclick = () => renderPeoplePage();
       const syncBtn = document.getElementById("btn-sync");
-      if (syncBtn) syncBtn.onclick = async () => { await studentSyncCycle(); toast("Saved on this phone", "success"); routeToRole(); };
+      if (syncBtn) syncBtn.onclick = async () => {
+        syncBtn.disabled = true;
+        await studentSyncCycle();
+        syncBtn.disabled = false;
+      };
       document.getElementById("btn-my-profile").onclick = (e) => {
         if (e.target.closest("#role-switch")) return;
         openPublicProfile(profile.uid, hasRole("student") ? "student" : "dir");
