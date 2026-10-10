@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <meta name="theme-color" content="#3d5a80" />
+  <meta name="theme-color" content="#3A2E22" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
@@ -15,34 +15,33 @@
   <link rel="apple-touch-icon" href="icon-180.png" sizes="180x180" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <style>
     :root {
-      --bg: #f7f9fc;
-      --surface: #ffffff;
-      --surface2: #f0f4f8;
-      --surface3: #e8eef5;
-      --primary: #3d5a80;
-      --primary-mid: #4a6fa5;
-      --primary-light: #6b8cbe;
-      --accent: #5b8def;
-      --accent-hover: #4a7de0;
-      --accent-soft: #eef4ff;
-      --success: #3d9a6a;
-      --success-bg: #edf8f2;
-      --warning: #c4892a;
-      --warning-bg: #fef8ec;
-      --danger: #d46565;
-      --danger-bg: #fdf0f0;
-      --text: #2c3e50;
-      --text-muted: #7a8b9a;
-      --border: #e4eaf1;
-      --radius: 16px;
-      --radius-sm: 10px;
-      --shadow: 0 1px 2px rgba(61,90,128,0.04), 0 4px 14px rgba(61,90,128,0.05);
-      --shadow-md: 0 4px 18px rgba(61,90,128,0.08);
-      --shadow-lg: 0 12px 36px rgba(61,90,128,0.1);
-      --font: 'Inter', system-ui, -apple-system, sans-serif;
+      --bg: #F8F3E6;
+      --surface: #F8F3E6;
+      --surface2: #ECE4D0;
+      --surface3: #E5DCC8;
+      --primary: #3A2E22;
+      --primary-mid: #6B4F3A;
+      --primary-light: #B9975B;
+      --accent: #7A3B2E;
+      --accent-hover: #5C2D22;
+      --accent-soft: #ECE4D0;
+      --success: #5F6F4B;
+      --success-bg: #E8EDE4;
+      --warning: #9A7B3F;
+      --warning-bg: #F5EDE0;
+      --danger: #7A3B2E;
+      --danger-bg: #F5E8E4;
+      --text: #4A4034;
+      --text-muted: #6E6252;
+      --border: #DCD0B8;
+      --radius: 6px;
+      --radius-sm: 5px;
+      --shadow: 0 2px 10px rgba(94,72,40,.10);
+      --shadow-md: 0 4px 18px rgba(94,72,40,.14);
+      --shadow-lg: 0 10px 26px rgba(94,72,40,.18);
+      --font: Georgia, "Times New Roman", serif;
       --ease: cubic-bezier(0.22, 1, 0.36, 1);
     }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -72,11 +71,11 @@
     }
     .btn:active:not(:disabled) { transform: scale(0.97); }
     .btn-primary {
-      background: var(--primary);
-      color: #fff;
-      box-shadow: 0 1px 2px rgba(15,39,68,0.2);
+      background: var(--primary-mid);
+      color: #EFE9DA;
+      box-shadow: 0 2px 8px rgba(58,46,34,.22);
     }
-    .btn-primary:hover { background: var(--primary-mid); box-shadow: var(--shadow-md); }
+    .btn-primary:hover { background: #7A5A42; box-shadow: var(--shadow-md); filter: brightness(1.05); }
     .btn-accent { background: var(--accent); color: #fff; }
     .btn-accent:hover { background: var(--accent-hover); }
     .btn-success { background: var(--success); color: #fff; }
@@ -104,7 +103,7 @@
     input:focus, select:focus, textarea:focus {
       outline: none;
       border-color: var(--accent);
-      box-shadow: 0 0 0 3.5px rgba(59,130,246,0.15);
+      box-shadow: 0 0 0 3.5px rgba(185,151,91,0.25);
     }
     label {
       display: block;
@@ -121,7 +120,7 @@
     /* Layout */
     #app { min-height: 100vh; display: flex; flex-direction: column; }
     .header {
-      background: rgba(255,255,255,0.92);
+      background: rgba(248,243,230,0.94);
       color: var(--text);
       padding: 0.6rem 1.5rem;
       display: flex;
@@ -133,7 +132,7 @@
       z-index: 100;
       backdrop-filter: blur(14px);
       border-bottom: 1px solid var(--border);
-      box-shadow: 0 1px 8px rgba(61,90,128,0.04);
+      box-shadow: 0 1px 8px rgba(94,72,40,.06);
     }
     .header-brand {
       display: flex; align-items: center; gap: 0.7rem;
@@ -150,7 +149,7 @@
       display: flex; align-items: center; gap: 0.5rem;
       background: var(--surface2);
       padding: 0.25rem 0.7rem 0.25rem 0.25rem;
-      border-radius: 999px;
+      border-radius: 4px;
       font-size: 0.8rem;
       font-weight: 500;
       border: 1px solid var(--border);
@@ -165,7 +164,7 @@
       background: var(--accent-soft);
       color: var(--accent-hover);
       padding: 0.15rem 0.5rem;
-      border-radius: 999px;
+      border-radius: 4px;
       text-transform: uppercase;
       letter-spacing: 0.04em;
       font-weight: 700;
@@ -188,7 +187,7 @@
     .cal-item.event { border-left: 3px solid var(--accent); }
     .main {
       flex: 1;
-      padding: 1.5rem 1.25rem 2rem;
+      padding: 1.5rem 0.75rem 2rem;
       max-width: 1120px;
       margin: 0 auto;
       width: 100%;
@@ -215,13 +214,13 @@
       justify-content: center;
       padding: 1.5rem;
       background:
-        radial-gradient(ellipse 70% 50% at 10% 20%, rgba(91,141,239,0.12), transparent),
-        radial-gradient(ellipse 60% 40% at 90% 80%, rgba(61,154,106,0.08), transparent),
-        linear-gradient(165deg, #eef2f8 0%, #f7f9fc 50%, #e8eef8 100%);
+        radial-gradient(ellipse 70% 50% at 10% 20%, rgba(185,151,91,0.15), transparent),
+        radial-gradient(ellipse 60% 40% at 90% 80%, rgba(95,111,75,0.1), transparent),
+        linear-gradient(165deg, #F8F3E6 0%, #ECE4D0 50%, #F5EDE0 100%);
     }
     .login-card {
-      background: #fff;
-      border-radius: 20px;
+      background: var(--surface);
+      border-radius: var(--radius);
       padding: 2.75rem 2.25rem;
       max-width: 400px;
       width: 100%;
@@ -268,10 +267,10 @@
       padding: 1.35rem;
       box-shadow: var(--shadow);
       margin-bottom: 1rem;
-      border: 1px solid rgba(226,232,240,0.8);
-      transition: box-shadow 0.2s var(--ease);
+      border: 1px solid var(--border);
+      transition: box-shadow 0.2s var(--ease), border-color 0.2s var(--ease);
     }
-    .card:hover { box-shadow: var(--shadow-md); }
+    .card:hover { box-shadow: var(--shadow-md); border-color: var(--primary-light); }
     .card-title {
       font-size: 0.95rem;
       font-weight: 700;
@@ -291,7 +290,7 @@
       padding: 1.25rem 1rem;
       box-shadow: var(--shadow);
       text-align: center;
-      border: 1px solid rgba(226,232,240,0.8);
+      border: 1px solid var(--border);
       position: relative;
       overflow: hidden;
       transition: transform 0.2s var(--ease), box-shadow 0.2s var(--ease);
@@ -357,7 +356,7 @@
     .badge {
       display: inline-block;
       padding: 0.2rem 0.55rem;
-      border-radius: 999px;
+      border-radius: 4px;
       font-size: 0.72rem;
       font-weight: 600;
       letter-spacing: 0.01em;
@@ -375,12 +374,12 @@
       margin-bottom: 1.35rem;
       background: var(--surface2);
       padding: 0.3rem;
-      border-radius: 12px;
+      border-radius: var(--radius);
       border: 1px solid var(--border);
     }
     .tab {
       padding: 0.5rem 1rem;
-      border-radius: 9px;
+      border-radius: var(--radius-sm);
       background: transparent;
       color: var(--text-muted);
       font-weight: 600;
@@ -424,7 +423,7 @@
     }
     .modal {
       background: var(--surface);
-      border-radius: 18px;
+      border-radius: var(--radius);
       padding: 1.6rem;
       max-width: 520px;
       width: 100%;
@@ -464,7 +463,7 @@
       background: var(--primary);
       color: #fff;
       padding: 0.75rem 1.2rem;
-      border-radius: 12px;
+      border-radius: var(--radius-sm);
       box-shadow: var(--shadow-lg);
       font-size: 0.875rem;
       font-weight: 500;
@@ -562,8 +561,8 @@
     }
 
     @media (max-width: 640px) {
-      .header { padding: 0.55rem 1rem; }
-      .main { padding: 1.1rem 0.85rem 1.75rem; }
+      .header { padding: 0.55rem 0.75rem; }
+      .main { padding: 1.1rem 0.5rem 1.75rem; }
       .user-chip span:not(.role-badge) { display: none; }
       .stat-value { font-size: 1.4rem; }
       .tabs { gap: 0.2rem; }
@@ -1124,7 +1123,7 @@
       document.getElementById("app").innerHTML = `
         <div class="login-wrap">
           <div class="login-card">
-            <img src="${LOGO}" alt="SALU" style="width:72px;height:72px;margin-bottom:1rem;border-radius:12px;object-fit:cover;background:#fff;" onerror="this.src='icon-192.png'" />
+            <img src="${LOGO}" alt="SALU" style="width:72px;height:72px;margin-bottom:1rem;border-radius:5px;object-fit:cover;background:#fff;" onerror="this.src='icon-192.png'" />
             <h1>SALU LMS</h1>
             <p>Shah Abdul Latif University<br/>Ghotki Campus</p>
             <button class="google-btn" id="btn-google">
@@ -2015,9 +2014,9 @@
       w.document.write(`<!DOCTYPE html><html><head><title>Marksheet — ${esc(profile.name)}</title>
         <style>
           body{font-family:Georgia,serif;padding:32px;color:#1a1a1a;max-width:800px;margin:0 auto;}
-          .head{text-align:center;margin-bottom:24px;border-bottom:2px solid #3d5a80;padding-bottom:16px;}
+          .head{text-align:center;margin-bottom:24px;border-bottom:2px solid #B9975B;padding-bottom:16px;}
           .head img{width:72px;height:72px;object-fit:cover;border-radius:8px;}
-          h1{font-size:1.4rem;margin:8px 0 4px;color:#3d5a80;}
+          h1{font-size:1.4rem;margin:8px 0 4px;color:#3A2E22;}
           .meta{font-size:0.95rem;margin:12px 0;}
           table{width:100%;border-collapse:collapse;font-size:0.9rem;}
           th{background:#eef2f8;padding:8px;border:1px solid #ccc;text-align:left;}
@@ -3847,7 +3846,7 @@
         <td>${t.attended || 0}</td>
       </tr>`).join("") || `<tr><td colspan="3" class="empty">Attendance history will fill this list</td></tr>`;
       renderShell(`
-        <div class="card" style="background:linear-gradient(135deg,#eef4ff,#fff);">
+        <div class="card" style="background:linear-gradient(135deg,#F8F3E6,#ECE4D0);">
           <div class="card-title">SALU Ghotki · Campus home</div>
           <p style="color:var(--text-muted);">Announcements, calendar, this year’s events, highest GPAs, and teachers with the most classes attended.</p>
         </div>
@@ -3896,7 +3895,7 @@
               <button class="btn btn-outline btn-sm" id="close-event">Close</button>
             </div>
             <div style="color:var(--text-muted);margin:0.4rem 0;">${esc(c.date || "")}</div>
-            ${c.imageURL ? `<img src="${esc(c.imageURL)}" alt="" style="width:100%;max-height:280px;object-fit:cover;border-radius:12px;" />` : ""}
+            ${c.imageURL ? `<img src="${esc(c.imageURL)}" alt="" style="width:100%;max-height:280px;object-fit:cover;border-radius:5px;" />` : ""}
             <p style="margin-top:0.7rem;">${esc(c.description || "")}</p>
             ${c.formURL ? `<a class="btn btn-primary" href="${esc(c.formURL)}" target="_blank" rel="noopener">Register</a>` : ""}
           </div>`;
@@ -3917,7 +3916,7 @@
         else if (!roles.includes("student")) staff.push(card);
       });
       teachers.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
-      const tile = (p, tag) => `<button data-open-profile="${esc(p.uid)}" data-kind="dir" style="border:1px solid var(--border);background:#fff;border-radius:16px;padding:0.8rem;text-align:center;cursor:pointer;">
+      const tile = (p, tag) => `<button data-open-profile="${esc(p.uid)}" data-kind="dir" style="border:1px solid var(--border);background:#fff;border-radius:6px;padding:0.8rem;text-align:center;cursor:pointer;">
         <img src="${esc(p.photoURL || LOGO)}" alt="" style="width:84px;height:84px;border-radius:50%;object-fit:cover;" onerror="this.src='${LOGO}'" />
         <div style="font-weight:700;margin-top:0.4rem;">${esc(p.name)}</div>
         <span class="badge badge-info">${tag}</span>
@@ -3927,7 +3926,7 @@
       if (hasRole("teacher") || hasRole("hod") || hasRole("admin") || hasRole("clerk") || hasRole("exam")) {
         const users = await dbGet("users") || {};
         studentTiles = `<h3 style="margin:1rem 0 0.5rem;">Students</h3><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:0.75rem;">
-          ${Object.entries(users).filter(([_, u]) => u.role === "student" || getRolesList(u).includes("student")).map(([uid, u]) => `<button data-open-profile="${esc(uid)}" data-kind="student" style="border:1px solid var(--border);background:#fff;border-radius:16px;padding:0.8rem;text-align:center;cursor:pointer;">
+          ${Object.entries(users).filter(([_, u]) => u.role === "student" || getRolesList(u).includes("student")).map(([uid, u]) => `<button data-open-profile="${esc(uid)}" data-kind="student" style="border:1px solid var(--border);background:#fff;border-radius:6px;padding:0.8rem;text-align:center;cursor:pointer;">
             <img src="${esc(u.photoURL || LOGO)}" alt="" style="width:84px;height:84px;border-radius:50%;object-fit:cover;" onerror="this.src='${LOGO}'" />
             <div style="font-weight:700;margin-top:0.4rem;">${esc(u.name)}</div>
             <span class="badge badge-warning">Student</span>
@@ -3977,7 +3976,7 @@
       const social = p.social || {};
       const isTeacher = (p.roles && p.roles.teacher) || p.role === "teacher" || getRolesList(p).includes("teacher");
       renderShell(`
-        <div class="card" style="background:linear-gradient(160deg,#e8eef8,#fff);">
+        <div class="card" style="background:linear-gradient(160deg,#F8F3E6,#ECE4D0);">
           <button class="btn btn-outline btn-sm" id="back-people">Back</button>
           <div style="display:flex;gap:1rem;align-items:center;margin-top:1rem;flex-wrap:wrap;">
             <img src="${esc(p.photoURL || LOGO)}" alt="" style="width:96px;height:96px;border-radius:50%;object-fit:cover;border:3px solid #fff;" onerror="this.src='${LOGO}'" />
