@@ -889,7 +889,9 @@
       return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
     }
     function dayName() {
-      return DAYS[trustedNow().getDay() === 0 ? 6 : trustedNow().getDay() - 1] || "Monday";
+      const d = trustedNow().getDay();
+      if (d === 0) return "Sunday";
+      return DAYS[d - 1] || "Monday";
     }
     function nowMinutes() {
       const d = trustedNow();
