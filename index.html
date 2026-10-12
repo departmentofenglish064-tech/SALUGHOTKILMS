@@ -640,24 +640,55 @@
       hod: "Head of Department"
     };
     const DAYS = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
-    let activeSemester = "current";
+    let activeSemester = "current";      // first current semester (legacy helper)
+    let activeSemesters = ["current"];   // ALL semesters running at the same time
     function semKey(name) {
       return String(name || "current").trim().replace(/[.#$/[\]]/g, "_") || "current";
     }
-    async function loadActiveSemester() {
+    async function loadActiveSemesters() {
       try {
         const s = await dbGet("settings/activeSemester");
-        activeSemester = (s && s.key) || "current";
-      } catch (_) { activeSemester = "current"; }
-      return activeSemester;
+        let keys = [];
+        if (s && s.list && typeof s.list === "object") keys = Object.keys(s.list).filter(k => s.list[k]);
+        else if (s && s.key) keys = [s.key];
+        activeSemesters = keys.length ? keys : ["current"];
+      } catch (_) { activeSemesters = ["current"]; }
+      activeSemester = activeSemesters[0];
+      return activeSemesters;
     }
+    async function loadActiveSemester() { await loadActiveSemesters(); return activeSemester; }
+    /** Add a semester to the list of current semesters. Other current semesters stay current. */
+    async function markSemesterCurrent(key, title) {
+      const s = await dbGet("settings/activeSemester");
+      const upd = { key: null };
+      if (s && !s.list && s.key) upd[`list/${s.key}`] = { title: s.title || s.key, ts: s.ts || Date.now() };
+      upd[`list/${key}`] = { title: title || key, ts: Date.now() };
+      await dbUpdate("settings/activeSemester", upd);
+      await loadActiveSemesters();
+    }
+    /** Remove a semester from the current list (e.g. batch passed out). Its timetable data is kept. */
+    async function endSemester(key) {
+      const s = await dbGet("settings/activeSemester") || {};
+      if (s.list) await dbRemove(`settings/activeSemester/list/${key}`);
+      else if (s.key === key) await dbUpdate("settings/activeSemester", { key: null });
+      await loadActiveSemesters();
+    }
+    /** Timetable of a department = all current semesters merged (each slot carries its semester). */
     async function loadTimetable(dept) {
       if (!dept) return {};
-      await loadActiveSemester();
-      const next = await dbGet(`timetableBySem/${dept}/${activeSemester}`) || {};
-      if (Object.keys(next).length) return next;
-      if (activeSemester === "current") return await dbGet(`timetable/${dept}`) || {};
-      return {};
+      await loadActiveSemesters();
+      const out = {};
+      for (const sem of activeSemesters) {
+        const t = await dbGet(`timetableBySem/${dept}/${sem}`) || {};
+        for (const [day, slots] of Object.entries(t)) {
+          out[day] = out[day] || {};
+          for (const [sid, sl] of Object.entries(slots || {})) {
+            out[day][sid] = { ...sl, semester: sl.semester || sem };
+          }
+        }
+      }
+      if (!Object.keys(out).length && activeSemesters.includes("current")) return await dbGet(`timetable/${dept}`) || {};
+      return out;
     }
     /** Normalize profile.roles (map or array) + profile.role into string[] */
     function getRolesList(p = profile) {
@@ -1691,7 +1722,7 @@
             if (u.role === "student" && u.department && u.batch) {
               await dbRemove(`deptStudents/${u.department}/${u.batch}/${uid}`);
             }
-            if (u.role === "teacher" && u.department) {
+            if (getRolesList(u).includes("teacher") && u.department) {
               await dbRemove(`deptTeachers/${u.department}/${uid}`);
             }
           }
@@ -1892,7 +1923,7 @@
       let html = "";
       for (const day of DAYS) {
         const slots = tt[day] || {};
-        const list = Object.entries(slots).sort((a,b) => timeToMin(a[1].start) - timeToMin(b[1].start));
+        const list = Object.entries(slots).filter(([_, sl]) => !sl.batch || !profile.batch || sl.batch === profile.batch).sort((a,b) => timeToMin(a[1].start) - timeToMin(b[1].start));
         if (!list.length) continue;
         html += `<div class="card"><div class="card-title">${day}${day===today?' · Today':''}</div><div class="tt-grid">`;
         for (const [sid, s] of list) {
@@ -2598,20 +2629,30 @@
     }
 
     async function teacherMarksHtml() {
-      const batches = await dbGet("batches") || {};
-      const myBatches = Object.entries(batches).filter(([_,b]) => b.department === profile.department);
-      const batchOpts = myBatches.map(([id,b]) => `<option value="${esc(id)}">${esc(b.name)}</option>`).join("");
+      const tt = profile.department ? await loadTimetable(profile.department) : {};
+      const seen = new Map();
+      for (const day of DAYS) {
+        for (const [sid, sl] of Object.entries(tt[day] || {})) {
+          if (sl.teacherId !== profile.uid || !sl.subject) continue;
+          const key = (sl.batch || "") + "||" + sl.subject;
+          if (!seen.has(key)) seen.set(key, { key, subject: sl.subject, batch: sl.batch || "", batchName: sl.batchName || "" });
+        }
+      }
+      const list = [...seen.values()].sort((a, b) => (a.batchName + a.subject).localeCompare(b.batchName + b.subject));
+      const subOpts = list.map(x =>
+        `<option value="${esc(x.key)}" data-batch="${esc(x.batch)}" data-subject="${esc(x.subject)}">${esc(x.subject)} · ${esc(x.batchName || (x.batch ? x.batch : "no batch"))}</option>`
+      ).join("");
 
       return `
         <div class="card">
           <div class="card-title">${ICONS.book} Upload Marks</div>
           <div class="alert alert-info">Scheme: Midterm 30 + Final 50 + Attendance 10 (auto from %) + Presentation 10 = 100</div>
           <form id="form-marks-select">
-            <div class="form-row">
-              <div class="form-group"><label>Batch</label><select name="batch" required><option value="">Select…</option>${batchOpts}</select></div>
-              <div class="form-group"><label>Subject</label><input name="subject" required placeholder="e.g. Literary Theory" /></div>
+            <div class="form-group"><label>Subject (from your timetable — batch loads automatically)</label>
+              <select name="subjectKey" required><option value="">Select subject…</option>${subOpts}</select>
             </div>
-            <button type="submit" class="btn btn-primary">Load Students</button>
+            ${subOpts ? "" : `<div class="alert alert-warning">No subjects assigned to you on the timetable yet. Ask the Clerk to add your classes.</div>`}
+            <button type="submit" class="btn btn-primary" ${subOpts ? "" : "disabled"}>Load Batch</button>
           </form>
         </div>
         <div id="marks-form-area"></div>
@@ -2745,8 +2786,12 @@
       if (formMS) formMS.onsubmit = async (e) => {
         e.preventDefault();
         const fd = new FormData(formMS);
-        const batchId = fd.get("batch");
-        const subject = fd.get("subject").trim();
+        const selM = formMS.querySelector('[name="subjectKey"]');
+        const optM = selM && selM.selectedOptions ? selM.selectedOptions[0] : null;
+        const batchId = optM ? (optM.dataset.batch || "") : "";
+        const subject = optM ? (optM.dataset.subject || "").trim() : "";
+        if (!subject) { toast("Select a subject", "error"); return; }
+        if (!batchId) { toast("This timetable slot has no batch attached. Ask the Clerk to attach a batch.", "error"); return; }
         const subKey = subject.replace(/[.#$/[\]]/g, "_");
         const idx = await dbGet(`deptStudents/${profile.department}/${batchId}`) || {};
         const students = [];
@@ -2910,16 +2955,20 @@
       const depts = await dbGet("departments") || {};
       const deptOpts = Object.entries(depts).map(([id,d]) => `<option value="${esc(id)}">${esc(d.name)}</option>`).join("");
       const teachers = await dbGet("users") || {};
-      const teacherList = Object.entries(teachers).filter(([_,u]) => u.role === "teacher");
+      const teacherList = Object.entries(teachers).filter(([_,u]) => getRolesList(u).includes("teacher"));
       const batches = await dbGet("batches") || {};
+      const semMeta = await dbGet("settings/activeSemester") || {};
+      const semTitles = semMeta.list ? Object.values(semMeta.list).map(v => v && v.title).filter(Boolean) : (semMeta.title ? [semMeta.title] : []);
+      const semDatalist = semTitles.map(t => `<option value="${esc(t)}"></option>`).join("");
 
       return `
         <div class="card">
           <div class="card-title">Add / Update Timetable Slot</div>
+          <div class="alert alert-info">Several semesters/batches can run at the same time. Every semester you add slots to is automatically marked <strong>current</strong>, and the others stay current. Use the live timetable below to end a semester when a batch passes out.</div>
           <form id="form-tt">
             <div class="form-row">
               <div class="form-group"><label>Department</label><select name="department" required id="tt-dept"><option value="">Select…</option>${deptOpts}</select></div>
-              <div class="form-group"><label>Semester</label><input name="semester" id="tt-semester" placeholder="Fall 2026" required /></div>
+              <div class="form-group"><label>Semester</label><input name="semester" id="tt-semester" placeholder="Fall 2026" list="tt-sem-list" required /><datalist id="tt-sem-list">${semDatalist}</datalist></div>
             <div class="form-group"><label>Day</label><select name="day" required>${DAYS.map(d=>`<option>${d}</option>`).join("")}</select></div>
             </div>
             <div class="form-row">
@@ -2941,11 +2990,11 @@
               <div class="form-group"><label>Room</label><input name="room" placeholder="e.g. R-12" /></div>
             </div>
             <button type="submit" class="btn btn-primary">Save Slot</button>
-            <button type="button" class="btn btn-outline" id="btn-set-sem" style="margin-left:0.4rem;">Set as current semester</button>
+            <button type="button" class="btn btn-outline" id="btn-set-sem" style="margin-left:0.4rem;">Mark semester as current (others stay current)</button>
           </form>
         </div>
         <div class="card">
-          <div class="card-title">Existing Slots</div>
+          <div class="card-title">Finalised timetable (live)</div>
           <div class="form-group"><label>Filter Department</label>
             <select id="tt-filter-dept"><option value="">Select department to view…</option>${deptOpts}</select>
           </div>
@@ -2998,7 +3047,7 @@
           if (q.length < 1) { box.innerHTML = ""; return; }
           if (!allTeachers) {
             const users = await dbGet("users") || {};
-            allTeachers = Object.entries(users).filter(([_,u]) => u.role === "teacher");
+            allTeachers = Object.entries(users).filter(([_,u]) => getRolesList(u).includes("teacher"));
           }
           const matches = allTeachers.filter(([_,u]) =>
             (u.name||"").toLowerCase().includes(q) || (u.email||"").toLowerCase().includes(q)
@@ -3020,14 +3069,151 @@
         };
       }
 
-      // Load batches when dept changes
-      const deptSel = document.getElementById("tt-dept");
-      if (deptSel) deptSel.onchange = async () => {
+      async function loadBatchOptions(dept, keep) {
         const batches = await dbGet("batches") || {};
         const opts = Object.entries(batches)
-          .filter(([_,b]) => b.department === deptSel.value)
+          .filter(([_,b]) => b.department === dept)
           .map(([id,b]) => `<option value="${esc(id)}">${esc(b.name)}</option>`).join("");
-        document.getElementById("tt-batch").innerHTML = `<option value="">—</option>${opts}`;
+        const sel = document.getElementById("tt-batch");
+        if (sel) { sel.innerHTML = `<option value="">—</option>${opts}`; if (keep) sel.value = keep; }
+      }
+
+      let ttSections = [];
+      async function renderTTLive(dept) {
+        const box = document.getElementById("tt-existing");
+        if (!box) return;
+        if (!dept) { box.innerHTML = `<div class="empty">Select a department to see its timetable</div>`; return; }
+        await loadActiveSemesters();
+        const meta = await dbGet("settings/activeSemester") || {};
+        const titles = meta.list || {};
+        const all = await dbGet(`timetableBySem/${dept}`) || {};
+        const legacy = await dbGet(`timetable/${dept}`) || {};
+        ttSections = Object.entries(all).map(([sem, tt]) => ({
+          sem, title: (titles[sem] && titles[sem].title) || sem,
+          base: `timetableBySem/${dept}/${sem}`, tt: tt || {}, legacy: false,
+          active: activeSemesters.includes(sem)
+        }));
+        if (Object.keys(legacy).length) {
+          ttSections.push({ sem: "__legacy", title: "Old timetable (before semesters)", base: `timetable/${dept}`, tt: legacy, legacy: true, active: false });
+        }
+        ttSections.sort((a, b) => (Number(b.active) - Number(a.active)) || a.title.localeCompare(b.title));
+
+        // Combined view = what teachers and students actually see
+        const combinedRows = DAYS.map(day => {
+          const items = [];
+          ttSections.filter(x => x.active).forEach(x => {
+            Object.values(x.tt[day] || {}).forEach(sl => items.push({ ...sl, _sem: x.title }));
+          });
+          items.sort((a, b) => timeToMin(a.start) - timeToMin(b.start));
+          return items.map((sl, i) => `<tr>
+            <td>${i === 0 ? `<strong>${day}</strong>` : ""}</td>
+            <td>${fmtTime(sl.start)} – ${fmtTime(sl.end)}</td>
+            <td>${esc(sl.subject)}</td>
+            <td>${esc(sl.teacherName || "")}</td>
+            <td>${esc(sl.batchName || "")}</td>
+            <td>${esc(sl.room || "")}</td>
+            <td>${esc(sl._sem)}</td>
+          </tr>`).join("");
+        }).join("");
+        const combined = `<div class="card" style="margin-bottom:1rem;background:var(--surface2);">
+          <div class="card-title">Finalised timetable — all current semesters</div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Day</th><th>Time</th><th>Subject</th><th>Teacher</th><th>Batch</th><th>Room</th><th>Semester</th></tr></thead>
+            <tbody>${combinedRows || `<tr><td colspan="7" class="empty">No slots in current semesters yet</td></tr>`}</tbody>
+          </table></div>
+        </div>`;
+
+        const sectionsHtml = ttSections.map((x, i) => {
+          const count = DAYS.reduce((n, d) => n + Object.keys(x.tt[d] || {}).length, 0);
+          const days = DAYS.map(day => {
+            const slots = Object.entries(x.tt[day] || {}).sort((a, b) => timeToMin(a[1].start) - timeToMin(b[1].start));
+            if (!slots.length) return "";
+            return `<div style="margin-bottom:0.8rem;"><strong>${day}</strong>` + slots.map(([sid, sl]) => `
+              <div class="tt-slot" style="margin-top:0.35rem;" data-si="${i}" data-day="${day}" data-sid="${esc(sid)}">
+                <div class="tt-time">${fmtTime(sl.start)} – ${fmtTime(sl.end)}</div>
+                <div class="tt-subject">${esc(sl.subject)} · ${esc(sl.teacherName || "")}</div>
+                <div class="tt-meta">${esc(sl.batchName || "")} · ${esc(sl.room || "")}</div>
+                <button class="btn btn-outline btn-sm" style="margin-top:0.3rem;" data-act="edit">Change subject</button>
+                <button class="btn btn-outline btn-sm" style="margin-top:0.3rem;" data-act="reassign">Reassign teacher</button>
+                <button class="btn btn-danger btn-sm" style="margin-top:0.3rem;" data-act="del">Delete</button>
+              </div>`).join("") + `</div>`;
+          }).join("");
+          const badge = x.legacy ? "Old" : x.active ? "Current" : "Ended";
+          const badgeCls = x.legacy ? "badge-info" : x.active ? "badge-success" : "badge-warning";
+          return `<div class="card" style="margin-bottom:1rem;">
+            <div class="card-title">
+              <span>${esc(x.title)} <span class="badge ${badgeCls}">${badge}</span> <span style="font-weight:400;color:var(--text-muted);font-size:0.8rem;">${count} slot(s)</span></span>
+              <span style="display:flex;gap:0.4rem;flex-wrap:wrap;">
+                ${x.legacy ? "" : (x.active
+                  ? `<button class="btn btn-outline btn-sm" data-sem-act="end" data-si="${i}">End semester (batch passed out)</button>`
+                  : `<button class="btn btn-outline btn-sm" data-sem-act="start" data-si="${i}">Mark current</button>`)}
+                <button class="btn btn-danger btn-sm" data-sem-act="delete" data-si="${i}">Delete timetable</button>
+              </span>
+            </div>
+            ${days || `<div class="empty">No slots</div>`}
+          </div>`;
+        }).join("");
+        box.innerHTML = combined + (sectionsHtml || `<div class="empty">No timetable slots yet</div>`);
+
+        box.querySelectorAll("[data-sem-act]").forEach(btn => {
+          btn.onclick = async () => {
+            const x = ttSections[Number(btn.dataset.si)];
+            const act = btn.dataset.semAct;
+            try {
+              if (act === "end") {
+                if (!confirm("End " + x.title + "? Its classes disappear from teacher and student dashboards. The timetable data is kept and you can mark it current again.")) return;
+                await endSemester(x.sem);
+                toast(x.title + " ended. Other current semesters are unchanged.", "success");
+              } else if (act === "start") {
+                await markSemesterCurrent(x.sem, x.title);
+                toast(x.title + " is current again.", "success");
+              } else {
+                if (!confirm("Permanently delete the whole timetable of " + x.title + "?")) return;
+                await dbRemove(x.base);
+                if (!x.legacy && x.active) await endSemester(x.sem);
+                toast("Timetable deleted", "success");
+              }
+            } catch (err) { toast("Failed: " + (err.message || err.code), "error"); }
+            renderTTLive(dept);
+          };
+        });
+        box.querySelectorAll(".tt-slot [data-act]").forEach(btn => {
+          btn.onclick = async () => {
+            const el = btn.closest(".tt-slot");
+            const x = ttSections[Number(el.dataset.si)];
+            const path = `${x.base}/${el.dataset.day}/${el.dataset.sid}`;
+            const act = btn.dataset.act;
+            try {
+              if (act === "del") {
+                if (!confirm("Delete this slot?")) return;
+                await dbRemove(path);
+                toast("Deleted", "success");
+              } else if (act === "edit") {
+                const subject = prompt("New subject name for this slot:");
+                if (!subject) return;
+                await dbUpdate(path, { subject: subject.trim() });
+                toast("Subject updated", "success");
+              } else if (act === "reassign") {
+                const name = prompt("New teacher name (account is not deleted):");
+                if (!name) return;
+                const users = await dbGet("users") || {};
+                const found = Object.entries(users).find(([_, u]) => (u.name || "").toLowerCase() === name.toLowerCase().trim() && getRolesList(u).includes("teacher"));
+                if (!found) { toast("No teacher with that exact name", "error"); return; }
+                await dbUpdate(path, { teacherId: found[0], teacherName: found[1].name });
+                toast("Slot reassigned. Previous teacher account kept.", "success");
+              }
+            } catch (err) { toast("Failed: " + (err.message || err.code), "error"); }
+            renderTTLive(dept);
+          };
+        });
+      }
+
+      const deptSel = document.getElementById("tt-dept");
+      if (deptSel) deptSel.onchange = async () => {
+        await loadBatchOptions(deptSel.value);
+        const f = document.getElementById("tt-filter-dept");
+        if (f) f.value = deptSel.value;
+        renderTTLive(deptSel.value);
       };
 
       const formTt = document.getElementById("form-tt");
@@ -3036,7 +3222,8 @@
         const fd = new FormData(formTt);
         const dept = fd.get("department");
         const day = fd.get("day");
-        const semester = semKey(fd.get("semester"));
+        const semRaw = fd.get("semester").trim();
+        const semester = semKey(semRaw);
         const teacherId = fd.get("teacherId");
         if (!teacherId) { toast("Please select a teacher via @ search", "error"); return; }
         const batchId = fd.get("batch");
@@ -3045,89 +3232,51 @@
           const b = await dbGet(`batches/${batchId}`);
           batchName = b?.name || "";
         }
-        const slotId = pushId(`timetableBySem/${dept}/${semester}/${day}`);
-        await dbSet(`timetableBySem/${dept}/${semester}/${day}/${slotId}`, {
-          start: fd.get("start"),
-          end: fd.get("end"),
-          subject: fd.get("subject").trim(),
-          teacherId,
-          teacherName: fd.get("teacherName"),
-          batch: batchId,
-          batchName,
-          room: fd.get("room").trim(),
-          semester,
-          createdAt: Date.now()
-        });
-        toast("Saved on semester " + semester + ". Old semester timetable was not deleted.", "success");
+        try {
+          const slotId = pushId(`timetableBySem/${dept}/${semester}/${day}`);
+          await dbSet(`timetableBySem/${dept}/${semester}/${day}/${slotId}`, {
+            start: fd.get("start"),
+            end: fd.get("end"),
+            subject: fd.get("subject").trim(),
+            teacherId,
+            teacherName: fd.get("teacherName"),
+            batch: batchId,
+            batchName,
+            room: fd.get("room").trim(),
+            semester,
+            createdAt: Date.now()
+          });
+          await loadActiveSemesters();
+          if (!activeSemesters.includes(semester)) await markSemesterCurrent(semester, semRaw);
+          toast("Slot saved. " + semRaw + " is current; other current semesters are unchanged.", "success");
+        } catch (err) {
+          toast("Failed: " + (err.message || err.code), "error");
+          return;
+        }
         formTt.reset();
+        document.getElementById("tt-dept").value = dept;
+        document.getElementById("tt-semester").value = semRaw;
+        document.getElementById("tt-teacher-id").value = "";
+        document.getElementById("tt-teacher-name").value = "";
+        await loadBatchOptions(dept, batchId);
+        const f = document.getElementById("tt-filter-dept");
+        if (f) f.value = dept;
+        renderTTLive(dept);
       };
       const setSem = document.getElementById("btn-set-sem");
       if (setSem) setSem.onclick = async () => {
         const name = document.getElementById("tt-semester").value.trim();
         if (!name) { toast("Type a semester name first", "error"); return; }
-        const key = semKey(name);
-        await dbSet("settings/activeSemester", { key, title: name, ts: Date.now() });
-        activeSemester = key;
-        toast("Current semester is now " + name + ". Dashboards will use this timetable.", "success");
+        try {
+          await markSemesterCurrent(semKey(name), name);
+          toast(name + " is now current. Other current semesters were kept.", "success");
+          const f = document.getElementById("tt-filter-dept");
+          if (f && f.value) renderTTLive(f.value);
+        } catch (err) { toast("Failed: " + (err.message || err.code), "error"); }
       };
 
       const filterDept = document.getElementById("tt-filter-dept");
-      if (filterDept) filterDept.onchange = async () => {
-        const dept = filterDept.value;
-        const box = document.getElementById("tt-existing");
-        if (!dept) { box.innerHTML = ""; return; }
-        const tt = await loadTimetable(dept);
-        let html = "";
-        for (const day of DAYS) {
-          const slots = Object.entries(tt[day]||{});
-          if (!slots.length) continue;
-          html += `<div style="margin-bottom:1rem;"><strong>${day}</strong>`;
-          for (const [sid, s] of slots.sort((a,b)=>timeToMin(a[1].start)-timeToMin(b[1].start))) {
-            html += `<div class="tt-slot" style="margin-top:0.35rem;">
-              <div class="tt-time">${fmtTime(s.start)} – ${fmtTime(s.end)}</div>
-              <div class="tt-subject">${esc(s.subject)} · ${esc(s.teacherName||"")}</div>
-              <div class="tt-meta">${esc(s.batchName||"")} · ${esc(s.room||"")}</div>
-              <button class="btn btn-outline btn-sm" style="margin-top:0.3rem;" data-edit-sub="${esc(dept)}|${esc(day)}|${esc(sid)}">Change subject</button>
-              <button class="btn btn-outline btn-sm" style="margin-top:0.3rem;" data-reassign="${esc(dept)}|${esc(day)}|${esc(sid)}">Reassign teacher</button>
-              <button class="btn btn-danger btn-sm" style="margin-top:0.3rem;" data-del-slot="${esc(dept)}|${esc(day)}|${esc(sid)}">Delete</button>
-            </div>`;
-          }
-          html += `</div>`;
-        }
-        box.innerHTML = html || `<div class="empty">No slots</div>`;
-        box.querySelectorAll("[data-del-slot]").forEach(btn => {
-          btn.onclick = async () => {
-            if (!confirm("Delete this slot?")) return;
-            const [d, day, sid] = btn.dataset.delSlot.split("|");
-            await dbRemove(`timetableBySem/${d}/${activeSemester}/${day}/${sid}`);
-            toast("Deleted", "success");
-            filterDept.onchange();
-          };
-        });
-        box.querySelectorAll("[data-edit-sub]").forEach(btn => {
-          btn.onclick = async () => {
-            const subject = prompt("New subject name for this semester slot:");
-            if (!subject) return;
-            const [d, day, sid] = btn.dataset.editSub.split("|");
-            await dbUpdate(`timetableBySem/${d}/${activeSemester}/${day}/${sid}`, { subject: subject.trim() });
-            toast("Subject updated for the current semester", "success");
-            filterDept.onchange();
-          };
-        });
-        box.querySelectorAll("[data-reassign]").forEach(btn => {
-          btn.onclick = async () => {
-            const name = prompt("New teacher name (account is not deleted):");
-            if (!name) return;
-            const users = await dbGet("users") || {};
-            const found = Object.entries(users).find(([_, u]) => (u.name || "").toLowerCase() === name.toLowerCase().trim() && (u.role === "teacher" || getRolesList(u).includes("teacher")));
-            if (!found) { toast("No teacher with that exact name", "error"); return; }
-            const [d, day, sid] = btn.dataset.reassign.split("|");
-            await dbUpdate(`timetableBySem/${d}/${activeSemester}/${day}/${sid}`, { teacherId: found[0], teacherName: found[1].name });
-            toast("Slot reassigned. Previous teacher account kept.", "success");
-            filterDept.onchange();
-          };
-        });
-      };
+      if (filterDept) filterDept.onchange = () => renderTTLive(filterDept.value);
 
       const btnLoadAtt = document.getElementById("btn-load-att");
       if (btnLoadAtt) btnLoadAtt.onclick = async () => {
