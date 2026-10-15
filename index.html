@@ -518,6 +518,19 @@
     .att-row.absent { background: var(--danger-bg); }
     .att-toggle { display: flex; gap: 0.3rem; }
     .att-toggle button { min-width: 68px; }
+    .att-row.present { border-left: 4px solid #2E7D32; }
+    .att-row.absent { border-left: 4px solid #C62828; }
+    .att-btn {
+      min-width: 92px; padding: 0.45rem 0.8rem; font-size: 0.85rem; font-weight: 700;
+      border: 2px solid var(--border); background: #fff; color: var(--text-muted);
+      border-radius: var(--radius-sm); box-shadow: none; opacity: 0.8;
+    }
+    .att-btn:hover { filter: none; background: #fff; }
+    .att-btn.on-present, .att-btn.on-present:hover { background: #2E7D32; border-color: #1B5E20; color: #fff; opacity: 1; box-shadow: 0 2px 8px rgba(46,125,50,.35); }
+    .att-btn.on-absent, .att-btn.on-absent:hover { background: #C62828; border-color: #8E1B1B; color: #fff; opacity: 1; box-shadow: 0 2px 8px rgba(198,40,40,.35); }
+    .att-state { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; margin-left: 0.5rem; }
+    .att-row.present .att-state { color: #2E7D32; }
+    .att-row.absent .att-state { color: #C62828; }
 
     /* Announcements */
     .ann-item {
@@ -2517,9 +2530,32 @@
     async function teacherAttHtml() {
       // List today's classes for this teacher so they can pick one
       if (!profile.department) return `<div class="card"><div class="empty">No department</div></div>`;
-      const tt = await loadTimetable(profile.department);
+      const tt = await loadTimetable(profile.department, true); // one read; ended semesters flagged _ended
       const today = dayName();
-      const slots = Object.entries(tt[today] || {}).filter(([_,s]) => s.teacherId === profile.uid);
+      const slots = Object.entries(tt[today] || {}).filter(([_,s]) => s.teacherId === profile.uid && !s._ended);
+
+      // Subjects this teacher teaches (for the attendance % list below)
+      const pctSeen = new Map();
+      for (const day of DAYS) {
+        for (const sl of Object.values(tt[day] || {})) {
+          if (sl.teacherId !== profile.uid || !sl.subject) continue;
+          const k = (sl.batch || "") + "||" + sl.subject;
+          if (!pctSeen.has(k)) pctSeen.set(k, { key: k, subject: sl.subject, batch: sl.batch || "", batchName: sl.batchName || "", semester: sl.semester || "", ended: !!sl._ended });
+        }
+      }
+      const pctOpts = [...pctSeen.values()].sort((a, b) => (a.batchName + a.subject).localeCompare(b.batchName + b.subject)).map(x =>
+        `<option value="${esc(x.key)}" data-batch="${esc(x.batch)}" data-subject="${esc(x.subject)}">${esc(x.subject)} · ${esc(x.batchName || (x.batch ? x.batch : "no batch"))}${x.semester ? " · " + esc(x.semester) : ""}${x.ended ? " (ended)" : ""}</option>`
+      ).join("");
+      const pctCard = `
+        <div class="card">
+          <div class="card-title">${ICONS.book} Attendance percentage by subject</div>
+          <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:0.6rem;">Pick a subject to see each student's percentage from the classes taken so far. Data is loaded only when you pick a subject.</p>
+          <div class="form-group">
+            <select id="att-pct-subject"><option value="">Select subject…</option>${pctOpts}</select>
+          </div>
+          <button type="button" class="btn btn-outline btn-sm" id="att-pct-refresh" style="display:none;margin-bottom:0.6rem;">Refresh</button>
+          <div id="att-pct-out"></div>
+        </div>`;
 
       // From dashboard "Take Attendance Now" — only if still inside class window
       const params = window.__attParams;
@@ -2546,7 +2582,7 @@
           <li>Slot must be for <strong>today’s weekday</strong></li>
           <li>Slot should include a <strong>batch</strong> that has students (Admission/Exam Wing)</li>
         </ol>
-      </div>`;
+      </div>` + pctCard;
 
       const now = nowMinutes();
       return `
@@ -2573,6 +2609,7 @@
             }).join("")}
           </div>
         </div>
+        ${pctCard}
       `;
     }
 
@@ -2630,11 +2667,11 @@
               const leaveFlag = onLeave || (was && was.leave);
               return `
                 <div class="att-row ${leaveFlag ? 'present' : (present ? 'present' : 'absent')}" data-uid="${esc(s.uid)}" data-name="${esc(s.name)}" data-leave="${leaveFlag ? '1' : '0'}">
-                  <span>${esc(s.name)}${leaveFlag ? ' <span class="badge badge-info">Leave</span>' : ''}</span>
+                  <span>${esc(s.name)}${leaveFlag ? ' <span class="badge badge-info">Leave</span>' : `<span class="att-state">${present ? '✓ Present' : '✗ Absent'}</span>`}</span>
                   ${leaveFlag ? `<span class="badge badge-info">On Leave</span>` : `
                   <div class="att-toggle">
-                    <button class="btn btn-sm ${present ? 'btn-success' : 'btn-outline'}" data-p="1">Present</button>
-                    <button class="btn btn-sm ${!present ? 'btn-danger' : 'btn-outline'}" data-p="0">Absent</button>
+                    <button type="button" class="att-btn ${present ? 'on-present' : ''}" data-p="1" aria-pressed="${present}">✓ Present</button>
+                    <button type="button" class="att-btn ${!present ? 'on-absent' : ''}" data-p="0" aria-pressed="${!present}">✗ Absent</button>
                   </div>`}
                 </div>
               `;
@@ -2739,14 +2776,68 @@
           const present = btn.dataset.p === "1";
           row.classList.toggle("present", present);
           row.classList.toggle("absent", !present);
-          row.querySelectorAll("button").forEach(b => {
-            b.className = "btn btn-sm btn-outline";
-            if ((b.dataset.p === "1" && present) || (b.dataset.p === "0" && !present)) {
-              b.className = `btn btn-sm ${present ? "btn-success" : "btn-danger"}`;
-            }
+          row.querySelectorAll(".att-btn").forEach(b => {
+            const isP = b.dataset.p === "1";
+            const on = isP === present;
+            b.className = "att-btn" + (on ? (isP ? " on-present" : " on-absent") : "");
+            b.setAttribute("aria-pressed", on ? "true" : "false");
           });
+          const st = row.querySelector(".att-state");
+          if (st) st.textContent = present ? "✓ Present" : "✗ Absent";
         };
       });
+
+      // Per-subject attendance percentage list (read only on demand, cached in memory)
+      const pctSel = document.getElementById("att-pct-subject");
+      if (pctSel) {
+        const out = document.getElementById("att-pct-out");
+        const refresh = document.getElementById("att-pct-refresh");
+        const load = async (force) => {
+          const opt = pctSel.selectedOptions[0];
+          if (!opt || !pctSel.value) { out.innerHTML = ""; if (refresh) refresh.style.display = "none"; return; }
+          const batch = opt.dataset.batch || "", subject = opt.dataset.subject || "";
+          if (!batch) { out.innerHTML = `<div class="alert alert-warning">This timetable slot has no batch attached. Ask the Clerk to attach a batch.</div>`; return; }
+          const subKey = subject.replace(/[.#$/[\]]/g, "_");
+          const ck = profile.department + "|" + batch + "|" + subKey;
+          let entry = attPctCache[ck];
+          if (!entry || force) {
+            out.innerHTML = `<div class="spinner"></div>`;
+            try {
+              const idx = await dbGet(`deptStudents/${profile.department}/${batch}`) || {};
+              const ids = Object.keys(idx);
+              const roster = ids.length ? (await dbGet(`roster/${profile.department}`) || {}) : {};
+              const rows = await Promise.all(ids.map(async uid => {
+                let r = roster[uid];
+                if (!r || !r.name) { const u = await dbGet(`users/${uid}`); r = u ? { name: u.name, rollNo: u.rollNo } : null; }
+                if (!r) return null;
+                const a = await dbGet(`subjectAtt/${uid}/${subKey}`) || {};
+                return { name: r.name || uid, rollNo: r.rollNo || "", present: Number(a.present || 0), total: Number(a.total || 0) };
+              }));
+              entry = { rows: rows.filter(Boolean).sort((a, b) => a.name.localeCompare(b.name)), ts: Date.now() };
+              attPctCache[ck] = entry;
+            } catch (err) {
+              out.innerHTML = `<div class="alert alert-danger">Could not load: ${esc(err.message || err.code || "error")}</div>`;
+              return;
+            }
+          }
+          if (refresh) refresh.style.display = "";
+          if (!entry.rows.length) { out.innerHTML = `<div class="empty">No students found in this batch</div>`; return; }
+          const low = entry.rows.filter(r => r.total && (r.present / r.total) * 100 < 70).length;
+          out.innerHTML = `
+            <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.5rem;">${entry.rows.length} student(s) · ${low} below 70% · loaded ${new Date(entry.ts).toLocaleTimeString()}</p>
+            <div class="table-wrap"><table>
+              <thead><tr><th>#</th><th>Name</th><th>Roll no.</th><th>Present</th><th>Classes held</th><th>Attendance</th></tr></thead>
+              <tbody>${entry.rows.map((r, i) => {
+                const pct = r.total ? (r.present / r.total) * 100 : null;
+                const badge = pct == null ? `<span class="badge badge-info">No classes yet</span>`
+                  : `<span class="badge ${pct < 70 ? "badge-danger" : pct < 80 ? "badge-warning" : "badge-success"}">${pct.toFixed(1)}%</span>`;
+                return `<tr><td>${i + 1}</td><td>${esc(r.name)}</td><td>${esc(r.rollNo || "—")}</td><td>${r.present}</td><td>${r.total}</td><td>${badge}</td></tr>`;
+              }).join("")}</tbody>
+            </table></div>`;
+        };
+        pctSel.onchange = () => load(false);
+        if (refresh) refresh.onclick = () => load(true);
+      }
 
       const submitAtt = document.getElementById("btn-submit-att");
       if (submitAtt) submitAtt.onclick = async () => {
@@ -3513,6 +3604,7 @@
     // ═══════════════════════════════════════════════════════════
     //  FINANCE WING
     // ═══════════════════════════════════════════════════════════
+    const attPctCache = {};   // teacher attendance % lists, kept in memory to save database reads
     let finCache = null;
     async function getFinData(force) {
       if (force || !finCache) {
